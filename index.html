@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>5代血統表 作成ツール v0.1.1</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- 起動時モーダル -->
+    <div class="modal-overlay" id="startup-modal-overlay">
+        <div class="modal">
+            <h2>血統表作成ツール</h2>
+            <p>実行する操作を選択してください。</p>
+            <div class="modal-buttons">
+                <button id="load-db-btn-modal" disabled>既存のDBを読み込む (準備中)</button>
+                <button id="create-new-btn-modal">新規データの作成を始める</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ヘッダー (操作ボタンエリア) -->
+    <header class="main-header">
+        <div class="header-group">
+            <button id="load-db" disabled>DB読込</button>
+            <button id="bulk-register-csv" disabled>CSV一括登録</button>
+            <button id="save-db" disabled>DB保存</button>
+        </div>
+        <div class="header-group">
+            <button id="save-image" disabled>血統表を画像として保存</button>
+        </div>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <main class="main-container">
+        <!-- 入力フォームエリア -->
+        <section class="form-container">
+            <h2>入力フォーム</h2>
+            <div class="horse-input-group" data-horse-id="target">
+                <h3>対象馬</h3>
+                <input type="text" id="target-name" placeholder="馬名">
+                <input type="number" id="target-birth-year" placeholder="生年">
+            </div>
+            <div class="horse-input-group" data-horse-id="sire">
+                <h3>父</h3>
+                <input type="text" id="sire-name" placeholder="馬名">
+                <input type="number" id="sire-birth-year" placeholder="生年">
+            </div>
+            <div class="horse-input-group" data-horse-id="dam">
+                <h3>母</h3>
+                <input type="text" id="dam-name" placeholder="馬名">
+                <input type="number" id="dam-birth-year" placeholder="生年">
+            </div>
+            <div class="horse-input-group" data-horse-id="sire-sire">
+                <h3>父の父 (Sire's Sire)</h3>
+                <input type="text" id="sire-sire-name" placeholder="馬名">
+                <input type="number" id="sire-sire-birth-year" placeholder="生年">
+            </div>
+            <div class="horse-input-group" data-horse-id="sire-dam">
+                <h3>父の母 (Sire's Dam)</h3>
+                <input type="text" id="sire-dam-name" placeholder="馬名">
+                <input type="number" id="sire-dam-birth-year" placeholder="生年">
+            </div>
+            <div class="horse-input-group" data-horse-id="dam-sire">
+                <h3>母の父 (Dam's Sire)</h3>
+                <input type="text" id="dam-sire-name" placeholder="馬名">
+                <input type="number" id="dam-sire-birth-year" placeholder="生年">
+            </div>
+            <div class="horse-input-group" data-horse-id="dam-dam">
+                <h3>母の母 (Dam's Dam)</h3>
+                <input type="text" id="dam-dam-name" placeholder="馬名">
+                <input type="number" id="dam-dam-birth-year" placeholder="生年">
+            </div>
+        </section>
+
+        <!-- 血統表プレビューエリア -->
+        <section class="preview-container">
+            <h2><span id="preview-title">血統表プレビュー</span></h2>
+            <table class="pedigree-table">
+                <tbody>
+                    <tr>
+                        <td rowspan="4" class="pedigree-cell sire-cell">
+                            <span id="preview-sire-name">父</span>
+                            <small id="preview-sire-birth-year"></small>
+                        </td>
+                        <td rowspan="2" class="pedigree-cell sire-cell">
+                            <span id="preview-sire-sire-name">父の父</span>
+                            <small id="preview-sire-sire-birth-year"></small>
+                        </td>
+                    </tr>
+                    <tr>
+                    </tr>
+                    <tr>
+                        <td rowspan="2" class="pedigree-cell dam-cell">
+                            <span id="preview-sire-dam-name">父の母</span>
+                            <small id="preview-sire-dam-birth-year"></small>
+                        </td>
+                    </tr>
+                    <tr>
+                    </tr>
+                    <tr>
+                        <td rowspan="4" class="pedigree-cell dam-cell">
+                            <span id="preview-dam-name">母</span>
+                            <small id="preview-dam-birth-year"></small>
+                        </td>
+                        <td rowspan="2" class="pedigree-cell sire-cell">
+                            <span id="preview-dam-sire-name">母の父</span>
+                            <small id="preview-dam-sire-birth-year"></small>
+                        </td>
+                    </tr>
+                    <tr>
+                    </tr>
+                    <tr>
+                        <td rowspan="2" class="pedigree-cell dam-cell">
+                            <span id="preview-dam-dam-name">母の母</span>
+                            <small id="preview-dam-dam-birth-year"></small>
+                        </td>
+                    </tr>
+                    <tr>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+    </main>
+
+    <script src="js/script.js"></script>
+</body>
+</html>
