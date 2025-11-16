@@ -272,7 +272,8 @@ document.addEventListener('DOMContentLoaded', () => {
         await new Promise(resolve => requestAnimationFrame(resolve));
         
         try {
-            const canvas = await html2canvas(cloneContainer);
+            // --- 修正点: scale: 1 オプションを追加してDPRを無視させる ---
+            const canvas = await html2canvas(cloneContainer, { scale: 1 });
             const dataUrl = canvas.toDataURL('image/png');
             downloadFile(dataUrl, fileName, 'image/png');
         } catch (error) {
