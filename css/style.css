@@ -7,7 +7,7 @@
 }
 
 body {
-    font-family: sans-serif;
+    font-family: 'Noto Sans JP', sans-serif;
     margin: 0;
     background-color: #f4f4f4;
 }
@@ -102,10 +102,15 @@ body {
 .clone-container-for-image {
     position: absolute;
     top: 0;
-    left: -9999px;
+    left: -9999px; /* 画面外へ */
     background-color: white;
     padding: 20px;
+    font-family: 'Noto Sans JP', sans-serif; /* Webフォントを強制適用 */
 }
+.clone-container-for-image .pedigree-table {
+    font-size: 13px; /* PC版のフォントサイズを強制適用 */
+}
+
 
 /* 血統表プレビュー */
 .pedigree-table-wrapper { overflow-x: auto; }
@@ -174,9 +179,4 @@ body {
     }
     .preview-container { width: auto; padding: 15px; }
     .pedigree-table { font-size: 12px; }
-
-    /* --- 修正点: 画像生成用クローンにはPC版のスタイルを強制適用 --- */
-    .clone-container-for-image .pedigree-table {
-        font-size: 13px; /* PC版のフォントサイズを維持 */
-    }
 }
