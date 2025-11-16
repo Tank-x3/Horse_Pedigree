@@ -295,7 +295,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function populateFormRecursively(horseId, idPrefix) {
         const horse = state.db.get(horseId);
-        // --- 修正点: horseが見つからない場合でも、親の名前と年から情報を復元 ---
         if (!horse && horseId) { 
             const [name, year] = horseId.split('_');
             if(name && year) setInputValue(idPrefix, name, year);
@@ -306,8 +305,22 @@ document.addEventListener('DOMContentLoaded', () => {
         setInputValue(idPrefix, horse.name, horse.birth_year);
         state.isDirty = true;
         
-        populateFormRecursively(horse.sire_id, idPrefix + 's');
-        populateFormRecursively(horse.dam_id, idPrefix + 'd');
+        // --- 修正点: idPrefixが'target'の場合の親IDを正しく解決 ---
+        let sirePrefix, damPrefix;
+        if (idPrefix === 'target') {
+            sirePrefix = 's';
+            damPrefix = 'd';
+        } else {
+            sirePrefix = idPrefix + 's';
+            damPrefix = idPrefix + 'd';
+        }
+        
+        if (horse.sire_id) {
+            populateFormRecursively(horse.sire_id, sirePrefix);
+        }
+        if (horse.dam_id) {
+            populateFormRecursively(horse.dam_id, damPrefix);
+        }
     }
 
     function setInputValue(idPrefix, name, year) {
