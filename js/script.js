@@ -1,8 +1,16 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- アプリケーションの状態管理 ---
     const state = {
-        db: new Map(), // 馬データをIDをキーにして格納
-        isDirty: false, // データが変更されたかどうかのフラグ
+        db: new Map(),
+        isDirty: false,
+    };
+
+    // --- 設定値 ---
+    const IMAGE_WIDTHS = { // 世代ごとの画像幅 (ピクセル)
+        2: 800,
+        3: 1000,
+        4: 1200,
+        5: 1400
     };
 
     // --- 定数 ---
@@ -25,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- 初期化処理 ---
     initModal();
     initUI();
-    initDBFunctions();
+    initButtons();
     initPageLeaveWarning();
     initFormDirtyStateTracking();
 
@@ -49,10 +57,11 @@ document.addEventListener('DOMContentLoaded', () => {
         initAutocomplete();
     }
     
-    function initDBFunctions() {
+    function initButtons() {
         document.getElementById('load-db').addEventListener('click', handleLoadDB);
         document.getElementById('bulk-register-csv').addEventListener('click', handleDownloadTemplate);
         document.getElementById('save-db').addEventListener('click', handleSaveDB);
+        document.getElementById('save-image').addEventListener('click', handleSaveImage);
     }
     
     function initPageLeaveWarning() {
@@ -95,13 +104,11 @@ document.addEventListener('DOMContentLoaded', () => {
         state.db.clear();
         const lines = csvText.trim().split(/\r?\n/);
         const header = lines.shift().split(',').map(h => h.trim());
-        
         const requiredHeaders = ['name', 'birth_year'];
         if (!requiredHeaders.every(h => header.includes(h))) {
             alert('CSVのヘッダーが不正です。\n必要な列: ' + requiredHeaders.join(', '));
             return;
         }
-        
         const data = lines.map(line => {
             const values = line.split(',');
             const obj = {};
@@ -110,18 +117,13 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             return obj;
         });
-        
         data.forEach(row => {
             if (row.name && row.birth_year) {
                 const id = `${row.name}_${row.birth_year}`;
                 const horse = {
-                    id: id,
-                    name: row.name,
-                    birth_year: row.birth_year,
-                    sire_name: row.sire_name || null,
-                    sire_birth_year: row.sire_birth_year || null,
-                    dam_name: row.dam_name || null,
-                    dam_birth_year: row.dam_birth_year || null,
+                    id: id, name: row.name, birth_year: row.birth_year,
+                    sire_name: row.sire_name || null, sire_birth_year: row.sire_birth_year || null,
+                    dam_name: row.dam_name || null, dam_birth_year: row.dam_birth_year || null,
                     sire_id: (row.sire_name && row.sire_birth_year) ? `${row.sire_name}_${row.sire_birth_year}` : null,
                     dam_id: (row.dam_name && row.dam_birth_year) ? `${row.dam_name}_${row.dam_birth_year}` : null
                 };
@@ -138,35 +140,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleSaveDB() {
         const formData = getFormDataAsMap();
-        
-        // --- 修正点: データをマージする際のロジックを改善 ---
         const newDb = new Map(state.db);
         for (const [id, horseData] of formData.entries()) {
             const existingData = newDb.get(id);
-            // 既存データがある場合は、フォームからの情報で不足分を補う形でマージ
             if (existingData) {
                 existingData.sire_id = horseData.sire_id || existingData.sire_id;
                 existingData.dam_id = horseData.dam_id || existingData.dam_id;
-                // 親の名前と生年も更新
                 if (horseData.sire_id && !existingData.sire_name) {
                     const sire = formData.get(horseData.sire_id) || state.db.get(horseData.sire_id);
-                    if(sire) {
-                        existingData.sire_name = sire.name;
-                        existingData.sire_birth_year = sire.birth_year;
-                    }
+                    if(sire) { existingData.sire_name = sire.name; existingData.sire_birth_year = sire.birth_year; }
                 }
-                 if (horseData.dam_id && !existingData.dam_name) {
+                if (horseData.dam_id && !existingData.dam_name) {
                     const dam = formData.get(horseData.dam_id) || state.db.get(horseData.dam_id);
-                    if(dam) {
-                        existingData.dam_name = dam.name;
-                        existingData.dam_birth_year = dam.birth_year;
-                    }
+                    if(dam) { existingData.dam_name = dam.name; existingData.dam_birth_year = dam.birth_year; }
                 }
             } else {
                 newDb.set(id, horseData);
             }
         }
-
         const csvString = convertDbToCSV(newDb);
         downloadFile(csvString, 'pedigree_db.csv', 'text/csv');
         state.isDirty = false;
@@ -176,7 +167,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function getFormDataAsMap() {
         const formData = new Map();
         const allHorseIds = ['target', ...ANCESTOR_IDS];
-        
         allHorseIds.forEach(idPrefix => {
             const nameEl = document.getElementById(`${idPrefix}-name`);
             const yearEl = document.getElementById(`${idPrefix}-birth-year`);
@@ -184,26 +174,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 const name = nameEl.value.trim();
                 const year = yearEl.value.trim();
                 const id = `${name}_${year}`;
-
-                // --- 修正点: idPrefixが'target'の場合の親IDを正しく解決 ---
                 let sireNameEl, sireYearEl, damNameEl, damYearEl;
                 if (idPrefix === 'target') {
-                    sireNameEl = document.getElementById('s-name');
-                    sireYearEl = document.getElementById('s-birth-year');
-                    damNameEl = document.getElementById('d-name');
-                    damYearEl = document.getElementById('d-birth-year');
+                    sireNameEl = document.getElementById('s-name'); sireYearEl = document.getElementById('s-birth-year');
+                    damNameEl = document.getElementById('d-name'); damYearEl = document.getElementById('d-birth-year');
                 } else {
-                    sireNameEl = document.getElementById(`${idPrefix}s-name`);
-                    sireYearEl = document.getElementById(`${idPrefix}s-birth-year`);
-                    damNameEl = document.getElementById(`${idPrefix}d-name`);
-                    damYearEl = document.getElementById(`${idPrefix}d-birth-year`);
+                    sireNameEl = document.getElementById(`${idPrefix}s-name`); sireYearEl = document.getElementById(`${idPrefix}s-birth-year`);
+                    damNameEl = document.getElementById(`${idPrefix}d-name`); damYearEl = document.getElementById(`${idPrefix}d-birth-year`);
                 }
-                
                 const sireName = sireNameEl ? sireNameEl.value.trim() : null;
                 const sireYear = sireYearEl ? sireYearEl.value.trim() : null;
                 const damName = damNameEl ? damNameEl.value.trim() : null;
                 const damYear = damYearEl ? damYearEl.value.trim() : null;
-
                 const horse = {
                     id, name, birth_year: year,
                     sire_name: sireName, sire_birth_year: sireYear,
@@ -220,34 +202,86 @@ document.addEventListener('DOMContentLoaded', () => {
     function convertDbToCSV(dbMap) {
         const header = 'name,birth_year,sire_name,sire_birth_year,dam_name,dam_birth_year';
         const rows = [];
-        
         for (const horse of dbMap.values()) {
-            // 親情報をIDから再解決して最新の情報を取得
             const sire = horse.sire_id ? dbMap.get(horse.sire_id) : null;
             const dam = horse.dam_id ? dbMap.get(horse.dam_id) : null;
             rows.push([
                 horse.name, horse.birth_year,
-                sire ? sire.name : horse.sire_name || '', 
-                sire ? sire.birth_year : horse.sire_birth_year || '',
-                dam ? dam.name : horse.dam_name || '', 
-                dam ? dam.birth_year : horse.dam_birth_year || ''
+                sire ? sire.name : horse.sire_name || '', sire ? sire.birth_year : horse.sire_birth_year || '',
+                dam ? dam.name : horse.dam_name || '', dam ? dam.birth_year : horse.dam_birth_year || ''
             ].join(','));
         }
         return `${header}\n${rows.join('\n')}`;
     }
 
     function downloadFile(content, fileName, mimeType) {
-        const blob = new Blob([content], { type: mimeType });
-        const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
+        let url;
+
+        if (content.startsWith('data:')) {
+            // データURLの場合 (画像)
+            a.href = content;
+        } else {
+            // テキストデータの場合 (CSV)
+            const blob = new Blob([content], { type: mimeType });
+            url = URL.createObjectURL(blob);
+            a.href = url;
+        }
+
         a.download = fileName;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+
+        // Blobから生成したURLの場合は、後片付けが必要
+        if (url) {
+            URL.revokeObjectURL(url);
+        }
     }
     
+    // --- 画像保存機能 ---
+    async function handleSaveImage() {
+        const previewContainer = document.querySelector('.preview-container');
+        const titleEl = document.getElementById('preview-title');
+        const tableEl = document.querySelector('.pedigree-table');
+
+        // ファイル名生成
+        const targetName = document.getElementById('target-name').value.trim();
+        const targetYear = document.getElementById('target-birth-year').value.trim();
+        const selectedGen = document.querySelector('input[name="generation"]:checked').value;
+        let fileName = `${selectedGen}代血統表.png`;
+        if (targetName) {
+            fileName = `${targetName}${targetYear ? `(${targetYear})` : ''}_${fileName}`;
+        }
+
+        // 画像化用のクローンを作成
+        const cloneContainer = document.createElement('div');
+        cloneContainer.className = 'clone-container-for-image';
+        const clonedTitle = titleEl.cloneNode(true);
+        const clonedTable = tableEl.cloneNode(true);
+        cloneContainer.appendChild(clonedTitle);
+        cloneContainer.appendChild(clonedTable);
+
+        // スタイル設定
+        const imageWidth = IMAGE_WIDTHS[selectedGen];
+        cloneContainer.style.width = `${imageWidth}px`;
+        
+        document.body.appendChild(cloneContainer);
+
+        // 描画を待ってから画像化
+        await new Promise(resolve => requestAnimationFrame(resolve));
+        
+        try {
+            const canvas = await html2canvas(cloneContainer);
+            const dataUrl = canvas.toDataURL('image/png');
+            downloadFile(dataUrl, fileName, 'image/png');
+        } catch (error) {
+            console.error('画像生成に失敗しました:', error);
+            alert('画像生成に失敗しました。');
+        } finally {
+            document.body.removeChild(cloneContainer);
+        }
+    }
     // --- UI関連 ---
     function initAutocomplete() {
         const allHorseIds = ['target', ...ANCESTOR_IDS];
@@ -259,7 +293,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const suggestionsContainer = document.createElement('div');
                 suggestionsContainer.className = 'autocomplete-suggestions';
                 wrapper.appendChild(suggestionsContainer);
-                
                 nameInput.addEventListener('input', () => showSuggestions(nameInput, suggestionsContainer, id));
                 document.addEventListener('click', (e) => {
                     if (e.target !== nameInput) suggestionsContainer.innerHTML = '';
@@ -272,7 +305,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const value = input.value.toLowerCase();
         container.innerHTML = '';
         if (value.length === 0) return;
-
         const suggestions = [];
         for (const horse of state.db.values()) {
             if (horse.name.toLowerCase().startsWith(value)) {
@@ -280,7 +312,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (suggestions.length >= 10) break;
         }
-
         suggestions.forEach(horse => {
             const item = document.createElement('div');
             item.className = 'autocomplete-suggestion';
@@ -301,77 +332,52 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         if (!horse) return;
-
         setInputValue(idPrefix, horse.name, horse.birth_year);
         state.isDirty = true;
-        
-        // --- 修正点: idPrefixが'target'の場合の親IDを正しく解決 ---
         let sirePrefix, damPrefix;
         if (idPrefix === 'target') {
-            sirePrefix = 's';
-            damPrefix = 'd';
+            sirePrefix = 's'; damPrefix = 'd';
         } else {
-            sirePrefix = idPrefix + 's';
-            damPrefix = idPrefix + 'd';
+            sirePrefix = idPrefix + 's'; damPrefix = idPrefix + 'd';
         }
-        
-        if (horse.sire_id) {
-            populateFormRecursively(horse.sire_id, sirePrefix);
-        }
-        if (horse.dam_id) {
-            populateFormRecursively(horse.dam_id, damPrefix);
-        }
+        if (horse.sire_id) populateFormRecursively(horse.sire_id, sirePrefix);
+        if (horse.dam_id) populateFormRecursively(horse.dam_id, damPrefix);
     }
 
     function setInputValue(idPrefix, name, year) {
         const nameInput = document.getElementById(`${idPrefix}-name`);
         const yearInput = document.getElementById(`${idPrefix}-birth-year`);
-        
         if (nameInput) nameInput.value = name;
         if (yearInput) yearInput.value = year;
-
-        // イベントを発火させてプレビューを更新
         if (nameInput) nameInput.dispatchEvent(new Event('input', { bubbles: true }));
         if (yearInput) yearInput.dispatchEvent(new Event('input', { bubbles: true }));
     }
+    
     function initFormPreviewSync() {
         const allHorseIds = ['target', ...ANCESTOR_IDS];
         allHorseIds.forEach(id => {
             const nameInput = document.getElementById(`${id}-name`);
-            const birthYearInput = document.getElementById(`${id}-birth-year`);
             if (!nameInput) return;
-
             const updateFunction = id === 'target' ? updateTitlePreview : updateAncestorPreview;
             nameInput.addEventListener('input', () => updateFunction(id));
-            birthYearInput.addEventListener('input', () => updateFunction(id));
-            
-            if (id !== 'target') {
-                updateFunction(id); // 初期表示
-            }
+            document.getElementById(`${id}-birth-year`).addEventListener('input', () => updateFunction(id));
+            if (id !== 'target') updateFunction(id);
         });
     }
 
     function updateTitlePreview(id) {
-        const nameInput = document.getElementById(`${id}-name`);
-        const birthYearInput = document.getElementById(`${id}-birth-year`);
-        const previewTitle = document.getElementById('preview-title');
-        const name = nameInput.value.trim();
-        const year = birthYearInput.value.trim();
-        previewTitle.textContent = name ? `${name}${year ? ` (${year})` : ''} の血統` : '血統表プレビュー';
+        const name = document.getElementById(`${id}-name`).value.trim();
+        const year = document.getElementById(`${id}-birth-year`).value.trim();
+        document.getElementById('preview-title').textContent = name ? `${name}${year ? ` (${year})` : ''} の血統` : '血統表プレビュー';
     }
 
     function updateAncestorPreview(id) {
-        const nameInput = document.getElementById(`${id}-name`);
-        const birthYearInput = document.getElementById(`${id}-birth-year`);
         const previewName = document.getElementById(`preview-${id}-name`);
-        const previewBirthYear = document.getElementById(`preview-${id}-birth-year`);
         if (!previewName) return;
-        
-        const name = nameInput.value.trim();
-        const year = birthYearInput.value.trim();
+        const name = document.getElementById(`${id}-name`).value.trim();
+        const year = document.getElementById(`${id}-birth-year`).value.trim();
         const placeholder = previewName.dataset.default || '';
         const col = parseInt(previewName.closest('.pedigree-cell')?.dataset.col);
-
         if (col === 5) {
             let text = name || placeholder;
             if (name && year) text = `${name} (${year})`;
@@ -379,13 +385,12 @@ document.addEventListener('DOMContentLoaded', () => {
             previewName.innerHTML = text.trim() === '' ? '&nbsp;' : text;
         } else {
             previewName.textContent = name || placeholder;
-            previewBirthYear.innerHTML = year ? year : '&nbsp;';
+            document.getElementById(`preview-${id}-birth-year`).innerHTML = year ? year : '&nbsp;';
         }
     }
 
     function initGenerationSelector() {
-        const selectors = document.querySelectorAll('input[name="generation"]');
-        selectors.forEach(radio => radio.addEventListener('change', handleGenerationChange));
+        document.querySelectorAll('input[name="generation"]').forEach(radio => radio.addEventListener('change', handleGenerationChange));
         handleGenerationChange();
     }
 

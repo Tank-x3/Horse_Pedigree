@@ -98,6 +98,14 @@ body {
     background-color: #f0f0f0;
 }
 
+/* 画像生成用クローン */
+.clone-container-for-image {
+    position: absolute;
+    top: 0;
+    left: -9999px;
+    background-color: white;
+    padding: 20px;
+}
 
 /* 血統表プレビュー */
 .pedigree-table-wrapper { overflow-x: auto; }
@@ -122,14 +130,14 @@ body {
 
 /* 5代目表示の特別ルール */
 .pedigree-cell[data-col="5"] span {
-    display: inline; /* 1行表示のためインラインに */
-    white-space: nowrap; /* 折り返しを防ぐ */
+    display: inline;
+    white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis; /* はみ出した場合に...で表示 */
+    text-overflow: ellipsis;
     max-width: 100%;
 }
 .pedigree-cell[data-col="5"] small {
-    display: none; /* 5代目の生年表示(<small>)は非表示に */
+    display: none;
 }
 
 
@@ -166,4 +174,9 @@ body {
     }
     .preview-container { width: auto; padding: 15px; }
     .pedigree-table { font-size: 12px; }
+
+    /* --- 修正点: 画像生成用クローンにはPC版のスタイルを強制適用 --- */
+    .clone-container-for-image .pedigree-table {
+        font-size: 13px; /* PC版のフォントサイズを維持 */
+    }
 }
