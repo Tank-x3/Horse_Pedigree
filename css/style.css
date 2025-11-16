@@ -76,6 +76,29 @@ body {
 .horse-input-group input[type="text"] { width: 13em; padding: 5px; margin-right: 5px; }
 .horse-input-group input[type="number"] { width: 7ch; padding: 5px; }
 
+/* オートコンプリート */
+.autocomplete-wrapper { position: relative; }
+.autocomplete-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 13em;
+    max-height: 150px;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid #ccc;
+    z-index: 999;
+    box-sizing: border-box;
+}
+.autocomplete-suggestion {
+    padding: 8px;
+    cursor: pointer;
+}
+.autocomplete-suggestion:hover, .autocomplete-suggestion.active {
+    background-color: #f0f0f0;
+}
+
+
 /* 血統表プレビュー */
 .pedigree-table-wrapper { overflow-x: auto; }
 .pedigree-table {
