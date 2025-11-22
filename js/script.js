@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const state = {
         db: new Map(),
         isDirty: false,
+        pendingSaveData: null
     };
 
     // --- 定数・構成 ---
@@ -33,19 +34,45 @@ document.addEventListener('DOMContentLoaded', () => {
     })();
     const ALL_IDS = ['target', ...ANCESTOR_IDS];
 
-    // --- 初期化 (順序を修正し、エラー耐性を向上) ---
-    try { initModal(); } catch (e) { console.error('Init Modal Error:', e); }
-    try { initButtons(); } catch (e) { console.error('Init Buttons Error:', e); } // ボタンを早めに初期化
-    try { 
-        initDOM(); // DOM生成
-        initGenerationSelector(); // DOM生成直後に世代切り替えを初期化
-    } catch (e) { console.error('Init DOM Error:', e); }
-    
-    try { 
-        initUI(); // その他UIイベント
-        initPageLeaveWarning();
-        initFormDirtyStateTracking();
-    } catch (e) { console.error('Init UI Error:', e); }
+    // --- 初期化シーケンス ---
+    initialize();
+
+    function initialize() {
+        // 定義済みの関数を呼び出すため、エラーハンドリングしつつ順次実行
+        try { initButtons(); } catch (e) { console.error('Buttons Init Error:', e); }
+        try { initModal(); } catch (e) { console.error('Modal Init Error:', e); }
+        try { 
+            initDOM(); 
+            initGenerationSelector(); 
+        } catch (e) { console.error('DOM Init Error:', e); }
+        
+        try { 
+            initUI(); 
+            initPageLeaveWarning(); 
+            initFormDirtyStateTracking();
+        } catch (e) { console.error('UI Init Error:', e); }
+    }
+
+    function initButtons() {
+        const loadBtn = document.getElementById('load-db');
+        const dlBtn = document.getElementById('bulk-register-csv');
+        const saveBtn = document.getElementById('save-db');
+        const imgBtn = document.getElementById('save-image');
+        
+        const cancelSaveBtn = document.getElementById('cancel-save-btn');
+        const execSaveBtn = document.getElementById('execute-save-btn');
+
+        if(loadBtn) loadBtn.onclick = handleLoadDB;
+        if(dlBtn) dlBtn.onclick = handleDownloadTemplate;
+        if(saveBtn) saveBtn.onclick = handleSaveDBRequest;
+        if(imgBtn) imgBtn.onclick = handleSaveImage;
+        
+        if(cancelSaveBtn) cancelSaveBtn.onclick = () => {
+            document.getElementById('save-confirm-modal-overlay').classList.add('hidden');
+            state.pendingSaveData = null;
+        };
+        if(execSaveBtn) execSaveBtn.onclick = executeSaveDB;
+    }
 
     // --- DOM生成ロジック ---
     function initDOM() {
@@ -56,7 +83,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function createFormGroups() {
         const container = document.getElementById('dynamic-form-container');
         if (!container) return;
-        
+        container.innerHTML = '';
+
         ALL_IDS.forEach(id => {
             const gen = getGeneration(id);
             const labelInfo = GENERATION_LABELS[id] || { 
@@ -101,7 +129,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function createPreviewTable() {
         const tbody = document.getElementById('preview-table-body');
         if (!tbody) return;
-        
+        tbody.innerHTML = '';
+
         const rows = [
             [{id:'s',rs:16,c:1}, {id:'ss',rs:8,c:2}, {id:'sss',rs:4,c:3}, {id:'ssss',rs:2,c:4}, {id:'sssss',c:5}],
             [{id:'ssssd',c:5}],
@@ -148,7 +177,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (cell.rs) td.rowSpan = cell.rs;
                 td.dataset.col = cell.c;
-                // ★修正: 初期状態で&nbsp;を入れて高さを確保する
                 td.innerHTML = `<span id="preview-${cell.id}-name">&nbsp;</span><small id="preview-${cell.id}-birth-year">&nbsp;</small>`;
                 tr.appendChild(td);
             });
@@ -156,22 +184,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function getGeneration(id) {
-        if (id === 'target') return 0;
-        return id.length;
-    }
-    function initButtons() {
-        const loadBtn = document.getElementById('load-db');
-        const dlBtn = document.getElementById('bulk-register-csv');
-        const saveBtn = document.getElementById('save-db');
-        const imgBtn = document.getElementById('save-image');
-
-        if(loadBtn) loadBtn.addEventListener('click', handleLoadDB);
-        if(dlBtn) dlBtn.addEventListener('click', handleDownloadTemplate);
-        if(saveBtn) saveBtn.addEventListener('click', handleSaveDB);
-        if(imgBtn) imgBtn.addEventListener('click', handleSaveImage);
-    }
-
+    function getGeneration(id) { if (id === 'target') return 0; return id.length; }
     function initUI() {
         initFormPreviewSync();
         initResponsiveTabs();
@@ -179,7 +192,6 @@ document.addEventListener('DOMContentLoaded', () => {
         initInputValidation();
     }
     
-    // --- 他の初期化関数は変更なし ---
     function initModal() {
         const modalOverlay = document.getElementById('startup-modal-overlay');
         const createNewBtn = document.getElementById('create-new-btn-modal');
@@ -187,12 +199,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const migrationModal = document.getElementById('migration-modal-overlay');
         const closeMigrationBtn = document.getElementById('close-migration-wizard');
         
-        createNewBtn.addEventListener('click', () => modalOverlay.classList.add('hidden'));
-        loadDbBtnModal.addEventListener('click', () => {
+        if(createNewBtn) createNewBtn.onclick = () => modalOverlay.classList.add('hidden');
+        if(loadDbBtnModal) loadDbBtnModal.onclick = () => {
             modalOverlay.classList.add('hidden');
             handleLoadDB();
-        });
-        closeMigrationBtn.addEventListener('click', () => migrationModal.classList.add('hidden'));
+        };
+        if(closeMigrationBtn) closeMigrationBtn.onclick = () => migrationModal.classList.add('hidden');
     }
 
     function initPageLeaveWarning() {
@@ -225,130 +237,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- DB・ファイル操作 ---
-    function handleLoadDB() {
-        const input = document.createElement('input');
-        input.type = 'file';
-        // ★修正: スマホ環境での認識漏れを防ぐため、MIMEタイプとtext/plainを追加
-        input.accept = '.csv,text/csv,text/plain'; 
-        
-        input.onchange = (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (event) => parseCSV(event.target.result);
-                reader.readAsText(file);
-            }
-        };
-        input.click();
-    }
-    
-    function parseCSV(csvText) {
-        state.db.clear();
-        const lines = csvText.trim().split(/\r?\n/);
-        const header = lines.shift().split(',').map(h => h.trim());
-        const isOldFormat = !header.includes('uuid');
-        
-        const data = lines.map(line => {
-            const values = line.split(',');
-            const obj = {};
-            header.forEach((key, i) => obj[key] = values[i] ? values[i].trim() : '');
-            return obj;
-        });
-        
-        // 一時的なマップ (名寄せ用)
-        // Key: "名前(カナor欧字)_生年", Value: UUID
-        const tempMap = new Map();
-
-        data.forEach(row => {
-            // 名前の正規化（カナ優先、なければ欧字）
-            // 旧形式: name列、新形式: name_ja / name_en
-            const nameJa = isOldFormat ? (/[a-zA-Z]/.test(row.name) ? '' : row.name) : row.name_ja;
-            const nameEn = isOldFormat ? (/[a-zA-Z]/.test(row.name) ? row.name : '') : row.name_en;
-            const birthYear = row.birth_year;
-            
-            // キー生成（実在馬・架空馬共通で、名前と生年で同一視する）
-            const uniqueKey = `${nameJa || nameEn}_${birthYear}`;
-            
-            // 既に登録済みかチェック
-            let uuid = tempMap.get(uniqueKey);
-            let horse = uuid ? state.db.get(uuid) : null;
-
-            if (!horse) {
-                // 新規登録
-                uuid = isOldFormat ? generateUUID() : row.uuid;
-                tempMap.set(uniqueKey, uuid);
-                
-                if (isOldFormat) {
-                    horse = {
-                        id: uuid,
-                        name_ja: nameJa, name_en: nameEn, birth_year: birthYear,
-                        is_fictional: false,
-                        sire_id: null, dam_id: null,
-                        // 旧データの一時保持
-                        temp_sire_key: (row.sire_name && row.sire_birth_year) ? `${row.sire_name}_${row.sire_birth_year}` : null,
-                        temp_dam_key: (row.dam_name && row.dam_birth_year) ? `${row.dam_name}_${row.dam_birth_year}` : null,
-                        // 直書き用（リンク解決できなかった場合の保険）
-                        sire_name: row.sire_name || '', dam_name: row.dam_name || '',
-                        country: '', color: '', family_no: '', lineage: ''
-                    };
-                } else {
-                    horse = {
-                        id: uuid,
-                        name_ja: nameJa, name_en: nameEn, birth_year: birthYear,
-                        is_fictional: row.is_fictional === 'true',
-                        country: row.country, color: row.color,
-                        family_no: row.family_no, lineage: row.lineage,
-                        sire_id: row.sire_id || null, dam_id: row.dam_id || null,
-                        sire_name: row.sire_name || '', dam_name: row.dam_name || ''
-                    };
-                }
-                state.db.set(uuid, horse);
-            } else {
-                // 既存データがある場合（重複行）、情報の補完などを検討するが、
-                // 旧データの単純な行重複であればスキップで良い。
-                // ただし、新形式でUUIDが異なるのに名前が同じ場合は別エントリとすべきだが、
-                // 今回のロジックでは「名前_生年」を正としてマージする挙動になる。
-            }
-        });
-
-        // 親子関係の再構築 (Re-linking)
-        if (isOldFormat) {
-            state.db.forEach(horse => {
-                if (horse.temp_sire_key) {
-                    const sireUuid = tempMap.get(horse.temp_sire_key);
-                    if (sireUuid) {
-                        horse.sire_id = sireUuid;
-                        // ID解決できた場合、直書きの名前情報はクリアしてデータの正規化を図る
-                        // ただし、架空馬の場合は残す設計だが、旧データは一律実在馬扱い(false)なのでクリアでOK
-                        if (!horse.is_fictional) horse.sire_name = '';
-                    }
-                }
-                if (horse.temp_dam_key) {
-                    const damUuid = tempMap.get(horse.temp_dam_key);
-                    if (damUuid) {
-                        horse.dam_id = damUuid;
-                        if (!horse.is_fictional) horse.dam_name = '';
-                    }
-                }
-                delete horse.temp_sire_key;
-                delete horse.temp_dam_key;
-            });
-            
-            document.getElementById('migration-modal-overlay').classList.remove('hidden');
-        }
-
-        alert(`${state.db.size}件のデータを読み込みました。`);
-        state.isDirty = false;
-    }
-
-    function generateUUID() {
-        if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-            return v.toString(16);
-        });
-    }
+    // ★追加: 欠落していた関数
     function handleDownloadTemplate() {
         const header = 'uuid,name_ja,name_en,birth_year,is_fictional,country,color,family_no,lineage,sire_id,dam_id,sire_name,dam_name';
         const example = `${generateUUID()},サンデーサイレンス,Sunday Silence,1986,false,USA,青鹿毛,,Halo系,,,Halo,Wishing Well`;
@@ -356,46 +245,118 @@ document.addEventListener('DOMContentLoaded', () => {
         downloadFile(content, 'template_v0.6.csv', 'text/csv');
     }
 
-    function handleSaveDB() {
+    // --- DB保存 (競合チェック & モーダル) ---
+    function handleSaveDBRequest() {
         const formData = getFormDataAsMap();
-        
+        const conflicts = [];
+
         for (const [tempId, formHorse] of formData.entries()) {
-            let existingId = formHorse.id; // ★修正: フォームから取得したUUIDを優先
-
-            // UUIDがない場合（手入力など）のみ、既存DBから名寄せを試みる
-            if (!existingId) {
-                for (const [dbId, dbHorse] of state.db.entries()) {
-                    if (!formHorse.is_fictional && !dbHorse.is_fictional) {
-                        if (dbHorse.name_en && formHorse.name_en && 
-                            dbHorse.name_en.toLowerCase() === formHorse.name_en.toLowerCase() &&
-                            dbHorse.birth_year === formHorse.birth_year) {
-                            existingId = dbId; break;
-                        }
-                    } else if (formHorse.is_fictional && dbHorse.is_fictional) {
-                        if (dbHorse.name_ja === formHorse.name_ja && dbHorse.birth_year === formHorse.birth_year) {
-                            existingId = dbId; break;
-                        }
+            if (formHorse.id && state.db.has(formHorse.id)) {
+                const dbHorse = state.db.get(formHorse.id);
+                const diffs = [];
+                const fields = ['name_ja', 'name_en', 'birth_year', 'country', 'color', 'family_no', 'lineage'];
+                
+                fields.forEach(field => {
+                    const dbVal = String(dbHorse[field] || '').trim();
+                    const formVal = String(formHorse[field] || '').trim();
+                    if (dbVal !== '' && dbVal !== formVal) {
+                        diffs.push({ field, old: dbVal, new: formVal });
                     }
-                }
-            }
+                });
 
-            if (existingId) {
-                const existing = state.db.get(existingId);
-                // 既存データを更新（フォームの値を優先してマージ）
-                Object.assign(existing, formHorse);
-                existing.id = existingId; // IDは維持
-            } else {
-                formHorse.id = generateUUID();
-                state.db.set(formHorse.id, formHorse);
+                if (diffs.length > 0) {
+                    conflicts.push({ horse: formHorse, dbHorse, diffs });
+                }
             }
         }
 
-        const csvString = convertDbToCSV(state.db);
-        downloadFile(csvString, 'pedigree_db_v0.6.csv', 'text/csv');
-        state.isDirty = false;
-        alert(`${state.db.size}件のデータを保存しました。`);
+        if (conflicts.length > 0) {
+            state.pendingSaveData = formData;
+            showSaveConfirmModal(conflicts);
+        } else {
+            saveDataDirectly(formData);
+        }
     }
 
+    function showSaveConfirmModal(conflicts) {
+        const listContainer = document.getElementById('save-confirm-list');
+        listContainer.innerHTML = '';
+
+        conflicts.forEach((conflict, index) => {
+            const card = document.createElement('div');
+            card.className = 'confirm-card';
+            
+            let tableRows = '';
+            const fieldNames = { 
+                name_ja: 'カナ馬名', name_en: '欧字馬名', birth_year: '生年', 
+                country: '生産国', color: '毛色', family_no: 'F-No.', lineage: '系統'
+            };
+            conflict.diffs.forEach(d => {
+                tableRows += `<tr><th>${fieldNames[d.field] || d.field}</th><td>${d.old}</td><td class="diff-highlight">${d.new}</td></tr>`;
+            });
+
+            const tempKey = Array.from(state.pendingSaveData.entries()).find(([k, v]) => v === conflict.horse)[0];
+
+            card.innerHTML = `
+                <h4>${conflict.dbHorse.name_ja || conflict.dbHorse.name_en} <small>(ID: ...${conflict.dbHorse.id.slice(-4)})</small></h4>
+                <table class="diff-table">
+                    <thead><tr><th>項目</th><th>変更前</th><th>変更後</th></tr></thead>
+                    <tbody>${tableRows}</tbody>
+                </table>
+                <div class="confirm-options">
+                    <label><input type="radio" name="action_${index}" value="update" checked> 情報を更新する <small>現在の登録内容を、入力された内容で書き換えます。</small></label>
+                    <label><input type="radio" name="action_${index}" value="new"> 新しい馬として登録する <small>現在の登録内容はそのまま残し、別の馬として新しく追加します。</small></label>
+                </div>
+            `;
+            card.dataset.tempId = tempKey;
+            listContainer.appendChild(card);
+        });
+
+        document.getElementById('save-confirm-modal-overlay').classList.remove('hidden');
+    }
+
+    function executeSaveDB() {
+        const listContainer = document.getElementById('save-confirm-list');
+        const cards = listContainer.querySelectorAll('.confirm-card');
+        
+        cards.forEach((card, index) => {
+            const actionInput = card.querySelector(`input[name="action_${index}"]:checked`);
+            if (actionInput && actionInput.value === 'new') {
+                const tempId = card.dataset.tempId;
+                const horseData = state.pendingSaveData.get(tempId);
+                if (horseData) {
+                    horseData.id = null; 
+                    state.pendingSaveData.set(tempId, horseData);
+                }
+            }
+        });
+
+        saveDataDirectly(state.pendingSaveData);
+        document.getElementById('save-confirm-modal-overlay').classList.add('hidden');
+        state.pendingSaveData = null;
+    }
+
+    function saveDataDirectly(formData) {
+        const newDb = new Map(state.db);
+        
+        for (const [tempId, formHorse] of formData.entries()) {
+            if (formHorse.id && newDb.has(formHorse.id)) {
+                const existing = newDb.get(formHorse.id);
+                Object.assign(existing, formHorse);
+            } else {
+                const newId = generateUUID();
+                formHorse.id = newId;
+                newDb.set(newId, formHorse);
+            }
+        }
+
+        const csvString = convertDbToCSV(newDb);
+        downloadFile(csvString, 'pedigree_db_v0.6.csv', 'text/csv');
+        state.isDirty = false;
+        state.db = newDb;
+        alert(`${state.db.size}件のデータを保存しました。`);
+    }
+    // --- データ取得・変換 ---
     function getFormDataAsMap() {
         const formData = new Map();
         ALL_IDS.forEach(id => {
@@ -405,8 +366,6 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (nameJa || nameEn) {
                 const isFictional = document.getElementById(`${id}-is-fictional`).checked;
-                
-                // ★修正: グループ要素からUUIDを取得
                 const group = document.querySelector(`.horse-input-group[data-horse-id="${id}"]`);
                 const uuid = group ? group.dataset.uuid : null;
 
@@ -420,8 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const horse = {
-                    // UUIDがあればそれを使用、なければ保存時に生成または検索される
-                    id: uuid, 
+                    id: uuid,
                     name_ja: nameJa, name_en: nameEn, birth_year: year,
                     is_fictional: isFictional,
                     country: document.getElementById(`${id}-country`).value.trim(),
@@ -430,7 +388,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     lineage: document.getElementById(`${id}-lineage`).value.trim(),
                     sire_name: sireName, dam_name: damName
                 };
-                // キーは一時的なものでOK
                 formData.set(id, horse);
             }
         });
@@ -475,6 +432,97 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.removeChild(a);
         if (url) URL.revokeObjectURL(url);
     }
+
+    // --- CSV読み込み & マイグレーション ---
+    function handleLoadDB() {
+        const input = document.createElement('input');
+        input.type = 'file'; input.accept = '.csv,text/csv,text/plain';
+        input.onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => parseCSV(event.target.result);
+                reader.readAsText(file);
+            }
+        };
+        input.click();
+    }
+    
+    function parseCSV(csvText) {
+        state.db.clear();
+        const lines = csvText.trim().split(/\r?\n/);
+        const header = lines.shift().split(',').map(h => h.trim());
+        const isOldFormat = !header.includes('uuid');
+        
+        const data = lines.map(line => {
+            const values = line.split(',');
+            const obj = {};
+            header.forEach((key, i) => obj[key] = values[i] ? values[i].trim() : '');
+            return obj;
+        });
+        
+        const tempMap = new Map();
+
+        data.forEach(row => {
+            const nameJa = isOldFormat ? (/[a-zA-Z]/.test(row.name) ? '' : row.name) : row.name_ja;
+            const nameEn = isOldFormat ? (/[a-zA-Z]/.test(row.name) ? row.name : '') : row.name_en;
+            const birthYear = row.birth_year;
+            const uniqueKey = `${nameJa || nameEn}_${birthYear}`;
+            
+            let uuid = tempMap.get(uniqueKey);
+            let horse = uuid ? state.db.get(uuid) : null;
+
+            if (!horse) {
+                uuid = isOldFormat ? generateUUID() : row.uuid;
+                tempMap.set(uniqueKey, uuid);
+                if (isOldFormat) {
+                    horse = {
+                        id: uuid, name_ja: nameJa, name_en: nameEn, birth_year: birthYear,
+                        is_fictional: false, sire_id: null, dam_id: null,
+                        temp_sire_key: (row.sire_name && row.sire_birth_year) ? `${row.sire_name}_${row.sire_birth_year}` : null,
+                        temp_dam_key: (row.dam_name && row.dam_birth_year) ? `${row.dam_name}_${row.dam_birth_year}` : null,
+                        sire_name: row.sire_name || '', dam_name: row.dam_name || '',
+                        country: '', color: '', family_no: '', lineage: ''
+                    };
+                } else {
+                    horse = {
+                        id: uuid, name_ja: nameJa, name_en: nameEn, birth_year: birthYear,
+                        is_fictional: row.is_fictional === 'true',
+                        country: row.country, color: row.color,
+                        family_no: row.family_no, lineage: row.lineage,
+                        sire_id: row.sire_id || null, dam_id: row.dam_id || null,
+                        sire_name: row.sire_name || '', dam_name: row.dam_name || ''
+                    };
+                }
+                state.db.set(uuid, horse);
+            }
+        });
+
+        if (isOldFormat) {
+            state.db.forEach(horse => {
+                if (horse.temp_sire_key) {
+                    const sireUuid = tempMap.get(horse.temp_sire_key);
+                    if (sireUuid) { horse.sire_id = sireUuid; if (!horse.is_fictional) horse.sire_name = ''; }
+                }
+                if (horse.temp_dam_key) {
+                    const damUuid = tempMap.get(horse.temp_dam_key);
+                    if (damUuid) { horse.dam_id = damUuid; if (!horse.is_fictional) horse.dam_name = ''; }
+                }
+                delete horse.temp_sire_key; delete horse.temp_dam_key;
+            });
+            document.getElementById('migration-modal-overlay').classList.remove('hidden');
+        }
+        alert(`${state.db.size}件のデータを読み込みました。`);
+        state.isDirty = false;
+    }
+
+    function generateUUID() {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
     // --- UI関連 ---
     function initAutocomplete() {
         ALL_IDS.forEach(id => {
@@ -500,7 +548,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const value = input.value.toLowerCase();
         container.innerHTML = '';
         if (value.length === 0) return;
-
         const suggestions = [];
         for (const horse of state.db.values()) {
             const matchJa = horse.name_ja && horse.name_ja.includes(value);
@@ -508,7 +555,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (matchJa || matchEn) suggestions.push(horse);
             if (suggestions.length >= 10) break;
         }
-
         suggestions.forEach(horse => {
             const item = document.createElement('div');
             item.className = 'autocomplete-suggestion';
@@ -516,7 +562,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (horse.name_en) label += ` (${horse.name_en})`;
             if (horse.birth_year) label += ` ${horse.birth_year}`;
             item.textContent = label;
-            
             item.addEventListener('click', () => {
                 populateFormRecursively(horse.id, idPrefix);
                 container.innerHTML = '';
@@ -534,7 +579,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const yr = document.getElementById(`${idPrefix}-birth-year`);
         const fict = document.getElementById(`${idPrefix}-is-fictional`);
         
-        // ★修正: グループ要素にUUIDを埋め込む
         const group = document.querySelector(`.horse-input-group[data-horse-id="${idPrefix}"]`);
         if (group) group.dataset.uuid = horseId;
 
@@ -545,7 +589,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const country = document.getElementById(`${idPrefix}-country`);
         if(country) country.value = horse.country || '';
-        // 詳細項目のセット（省略されていた部分も本来は必要ですが、主要因ではないため割愛）
+        document.getElementById(`${idPrefix}-color`).value = horse.color || '';
+        document.getElementById(`${idPrefix}-family-no`).value = horse.family_no || '';
+        document.getElementById(`${idPrefix}-lineage`).value = horse.lineage || '';
 
         if(ja) ja.dispatchEvent(new Event('input', { bubbles: true }));
 
@@ -558,10 +604,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (horse.sire_id) {
             populateFormRecursively(horse.sire_id, sirePrefix);
         } else if (horse.is_fictional && horse.sire_name) {
-            // 直書きの場合UUIDはないので属性をクリア
             const sGroup = document.querySelector(`.horse-input-group[data-horse-id="${sirePrefix}"]`);
             if(sGroup) delete sGroup.dataset.uuid;
-            
             const sJa = document.getElementById(`${sirePrefix}-name-ja`);
             if(sJa) { sJa.value = horse.sire_name; sJa.dispatchEvent(new Event('input', { bubbles: true })); }
         }
@@ -571,7 +615,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (horse.is_fictional && horse.dam_name) {
             const dGroup = document.querySelector(`.horse-input-group[data-horse-id="${damPrefix}"]`);
             if(dGroup) delete dGroup.dataset.uuid;
-
             const dJa = document.getElementById(`${damPrefix}-name-ja`);
             if(dJa) { dJa.value = horse.dam_name; dJa.dispatchEvent(new Event('input', { bubbles: true })); }
         }
@@ -601,7 +644,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const pName = document.getElementById(`preview-${id}-name`);
             const pYear = document.getElementById(`preview-${id}-birth-year`);
             if(!pName) return;
-            
             const col = parseInt(pName.closest('.pedigree-cell')?.dataset.col);
             if (col === 5) {
                 let text = (ja || en) ? (ja || en) : '&nbsp;';
@@ -616,21 +658,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function initGenerationSelector() {
-        const selectors = document.querySelectorAll('input[name="generation"]');
-        selectors.forEach(radio => radio.addEventListener('change', handleGenerationChange));
-        handleGenerationChange(); // 初期実行
+        document.querySelectorAll('input[name="generation"]').forEach(radio => radio.addEventListener('change', handleGenerationChange));
+        handleGenerationChange();
     }
 
     function handleGenerationChange() {
         const selectedGen = parseInt(document.querySelector('input[name="generation"]:checked').value);
-        
         document.querySelectorAll('.horse-input-group[data-generation]').forEach(group => {
             const gen = parseInt(group.dataset.generation);
-            // classList.toggleの第二引数がIE非対応(今回はモダンブラウザ前提なのでOK)だが念のため
             if(gen > selectedGen && gen !== 0) group.classList.add('hidden');
             else group.classList.remove('hidden');
         });
-
         document.querySelectorAll('.pedigree-cell[data-col]').forEach(cell => {
             const col = parseInt(cell.dataset.col);
             if(col > selectedGen) cell.classList.add('hidden');

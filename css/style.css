@@ -31,7 +31,7 @@ body {
 }
 .hidden { display: none !important; }
 
-/* 移行ウィザード用スタイル */
+/* 移行ウィザード用 */
 .migration-wizard { text-align: left; max-width: 500px; }
 .migration-wizard h3 { text-align: center; margin-top: 0; }
 .migration-info-box {
@@ -46,6 +46,18 @@ body {
     display: inline-block; background-color: #eee; padding: 2px 8px;
     border-radius: 4px; font-size: 0.9em; margin-right: 5px; margin-bottom: 5px !important;
 }
+
+/* ★追加: 保存確認モーダル用 */
+.save-confirm-modal { text-align: left; max-width: 600px; width: 90%; }
+.save-confirm-list { max-height: 60vh; overflow-y: auto; border: 1px solid #ddd; padding: 10px; }
+.confirm-card { background: #f9f9f9; border: 1px solid #ccc; margin-bottom: 15px; padding: 15px; border-radius: 5px; }
+.confirm-card h4 { margin: 0 0 10px 0; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+.diff-table { width: 100%; border-collapse: collapse; font-size: 0.9em; margin-bottom: 10px; background: white; }
+.diff-table th, .diff-table td { border: 1px solid #ddd; padding: 5px; text-align: left; }
+.diff-table th { background: #eee; width: 30%; }
+.diff-highlight { color: red; font-weight: bold; }
+.confirm-options label { display: block; margin-bottom: 8px; cursor: pointer; }
+.confirm-options small { display: block; margin-left: 25px; color: #666; font-size: 0.85em; }
 
 /* ヘッダー */
 .main-header {
@@ -85,14 +97,11 @@ body {
 .input-row { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
 .fictional-check-label { font-size: 0.85em; font-weight: normal; margin-left: 10px; }
 
-/* 詳細入力アコーディオン */
 .details-input { margin-top: 5px; }
 .details-input summary { cursor: pointer; font-size: 0.85em; color: #666; margin-bottom: 5px; }
 .details-input .input-row { margin-top: 5px; background: #f9f9f9; padding: 5px; border-radius: 4px; }
 
-/* 入力欄サイズ調整 */
-.input-name-ja { width: 12em; }
-.input-name-en { width: 12em; }
+.input-name-ja, .input-name-en { width: 12em; }
 .input-year { width: 6em; }
 .input-detail { width: 8em; }
 
@@ -122,14 +131,8 @@ body {
     vertical-align: middle; text-align: center;
     width: 13em; box-sizing: border-box;
 }
-.pedigree-cell span { 
-    display: block; 
-    min-height: 1.2em; /* ★修正: 空でも高さを確保 */
-}
-.pedigree-cell small { 
-    display: block; color: #555; font-size: 0.9em; 
-    min-height: 1.1em; /* ★修正: 空でも高さを確保 */
-}
+.pedigree-cell span { display: block; min-height: 1.2em; }
+.pedigree-cell small { display: block; color: #555; font-size: 0.9em; min-height: 1.1em; }
 .sire-cell { background-color: var(--sire-bg-color); }
 .dam-cell { background-color: var(--dam-bg-color); }
 .pedigree-cell[data-col="5"] span { display: inline; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
