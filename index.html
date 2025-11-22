@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>5代血統表 作成ツール v0.5</title>
+    <title>5代血統表 作成ツール v0.6</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
@@ -18,6 +18,41 @@
             <div class="modal-buttons">
                 <button id="load-db-btn-modal">既存のDBを読み込む</button>
                 <button id="create-new-btn-modal">新規データの作成を始める</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 移行ウィザードモーダル (初期状態は非表示) -->
+    <div class="modal-overlay hidden" id="migration-modal-overlay">
+        <div class="modal migration-wizard">
+            <h3>データベース形式の更新について</h3>
+            <p>
+                機能強化に伴い、データベース形式が新しくなりました。<br>
+                読み込んだデータは自動変換されていますが、保存前に以下の確認をお願いします。
+            </p>
+            <div class="migration-info-box">
+                <h4>⚠️ 重要な変更点</h4>
+                <ul>
+                    <li>
+                        <strong>実在馬は「欧字馬名」が必須になります</strong><br>
+                        <small>データの重複を防ぐため、実在馬はアルファベット名（例: Sunday Silence）の入力が必要です。</small>
+                    </li>
+                    <li>
+                        <strong>「架空馬」チェックボックスの追加</strong><br>
+                        <small>チェックを入れると、欧字名や生年が未入力でも登録できるようになります。</small>
+                    </li>
+                </ul>
+                <h4>➕ 追加された項目（すべて任意）</h4>
+                <p><small>以下の詳細情報を記録できるようになりました。</small></p>
+                <ul class="inline-list">
+                    <li>生産国</li>
+                    <li>毛色</li>
+                    <li>ファミリーNo.</li>
+                    <li>系統名</li>
+                </ul>
+            </div>
+            <div class="modal-buttons">
+                <button id="close-migration-wizard">確認しました</button>
             </div>
         </div>
     </div>
@@ -42,7 +77,7 @@
 
     <!-- メインコンテンツ -->
     <main class="main-container">
-        <!-- 入力フォームエリア (内容はv0.4から変更なし) -->
+        <!-- 入力フォームエリア -->
         <section class="form-container tab-content active" id="form-tab">
             <h2>入力フォーム</h2>
             <div class="generation-selector">
@@ -52,121 +87,18 @@
                 <label><input type="radio" name="generation" value="4"> 4代</label>
                 <label><input type="radio" name="generation" value="5"> 5代</label>
             </div>
-            <div class="horse-input-group" data-generation="0" data-horse-id="target"><h3 >対象馬</h3><div class="autocomplete-wrapper"><input type="text" id="target-name" placeholder="馬名"><input type="number" id="target-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="1" data-horse-id="s"><h3 >父</h3><div class="autocomplete-wrapper"><input type="text" id="s-name" placeholder="馬名"><input type="number" id="s-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="1" data-horse-id="d"><h3 >母</h3><div class="autocomplete-wrapper"><input type="text" id="d-name" placeholder="馬名"><input type="number" id="d-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="2" data-horse-id="ss"><h3 >父の父 (SS)</h3><div class="autocomplete-wrapper"><input type="text" id="ss-name" placeholder="馬名"><input type="number" id="ss-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="2" data-horse-id="sd"><h3 >父の母 (SD)</h3><div class="autocomplete-wrapper"><input type="text" id="sd-name" placeholder="馬名"><input type="number" id="sd-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="2" data-horse-id="ds"><h3 >母の父 (DS)</h3><div class="autocomplete-wrapper"><input type="text" id="ds-name" placeholder="馬名"><input type="number" id="ds-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="2" data-horse-id="dd"><h3 >母の母 (DD)</h3><div class="autocomplete-wrapper"><input type="text" id="dd-name" placeholder="馬名"><input type="number" id="dd-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="3" data-horse-id="sss"><h4 >父父父 (SSS)</h4><div class="autocomplete-wrapper"><input type="text" id="sss-name" placeholder="馬名"><input type="number" id="sss-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="3" data-horse-id="ssd"><h4 >父父母 (SSD)</h4><div class="autocomplete-wrapper"><input type="text" id="ssd-name" placeholder="馬名"><input type="number" id="ssd-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="3" data-horse-id="sds"><h4 >父母父 (SDS)</h4><div class="autocomplete-wrapper"><input type="text" id="sds-name" placeholder="馬名"><input type="number" id="sds-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="3" data-horse-id="sdd"><h4 >父母母 (SDD)</h4><div class="autocomplete-wrapper"><input type="text" id="sdd-name" placeholder="馬名"><input type="number" id="sdd-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="3" data-horse-id="dss"><h4 >母父父 (DSS)</h4><div class="autocomplete-wrapper"><input type="text" id="dss-name" placeholder="馬名"><input type="number" id="dss-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="3" data-horse-id="dsd"><h4 >母父母 (DSD)</h4><div class="autocomplete-wrapper"><input type="text" id="dsd-name" placeholder="馬名"><input type="number" id="dsd-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="3" data-horse-id="dds"><h4 >母母父 (DDS)</h4><div class="autocomplete-wrapper"><input type="text" id="dds-name" placeholder="馬名"><input type="number" id="dds-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="3" data-horse-id="ddd"><h4 >母母母 (DDD)</h4><div class="autocomplete-wrapper"><input type="text" id="ddd-name" placeholder="馬名"><input type="number" id="ddd-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="4" data-horse-id="ssss"><h5 >(SSSS)</h5><div class="autocomplete-wrapper"><input type="text" id="ssss-name" placeholder="馬名"><input type="number" id="ssss-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="4" data-horse-id="sssd"><h5 >(SSSD)</h5><div class="autocomplete-wrapper"><input type="text" id="sssd-name" placeholder="馬名"><input type="number" id="sssd-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="4" data-horse-id="ssds"><h5 >(SSDS)</h5><div class="autocomplete-wrapper"><input type="text" id="ssds-name" placeholder="馬名"><input type="number" id="ssds-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="4" data-horse-id="ssdd"><h5 >(SSDD)</h5><div class="autocomplete-wrapper"><input type="text" id="ssdd-name" placeholder="馬名"><input type="number" id="ssdd-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="4" data-horse-id="sdss"><h5 >(SDSS)</h5><div class="autocomplete-wrapper"><input type="text" id="sdss-name" placeholder="馬名"><input type="number" id="sdss-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="4" data-horse-id="sdsd"><h5 >(SDSD)</h5><div class="autocomplete-wrapper"><input type="text" id="sdsd-name" placeholder="馬名"><input type="number" id="sdsd-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="4" data-horse-id="sdds"><h5 >(SDDS)</h5><div class="autocomplete-wrapper"><input type="text" id="sdds-name" placeholder="馬名"><input type="number" id="sdds-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="4" data-horse-id="sddd"><h5 >(SDDD)</h5><div class="autocomplete-wrapper"><input type="text" id="sddd-name" placeholder="馬名"><input type="number" id="sddd-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="4" data-horse-id="dsss"><h5 >(DSSS)</h5><div class="autocomplete-wrapper"><input type="text" id="dsss-name" placeholder="馬名"><input type="number" id="dsss-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="4" data-horse-id="dssd"><h5 >(DSSD)</h5><div class="autocomplete-wrapper"><input type="text" id="dssd-name" placeholder="馬名"><input type="number" id="dssd-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="4" data-horse-id="dsds"><h5 >(DSDS)</h5><div class="autocomplete-wrapper"><input type="text" id="dsds-name" placeholder="馬名"><input type="number" id="dsds-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="4" data-horse-id="dsdd"><h5 >(DSDD)</h5><div class="autocomplete-wrapper"><input type="text" id="dsdd-name" placeholder="馬名"><input type="number" id="dsdd-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="4" data-horse-id="ddss"><h5 >(DDSS)</h5><div class="autocomplete-wrapper"><input type="text" id="ddss-name" placeholder="馬名"><input type="number" id="ddss-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="4" data-horse-id="ddsd"><h5 >(DDSD)</h5><div class="autocomplete-wrapper"><input type="text" id="ddsd-name" placeholder="馬名"><input type="number" id="ddsd-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="4" data-horse-id="ddds"><h5 >(DDDS)</h5><div class="autocomplete-wrapper"><input type="text" id="ddds-name" placeholder="馬名"><input type="number" id="ddds-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="4" data-horse-id="dddd"><h5 >(DDDD)</h5><div class="autocomplete-wrapper"><input type="text" id="dddd-name" placeholder="馬名"><input type="number" id="dddd-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="sssss"><h5 >(SSSSS)</h5><div class="autocomplete-wrapper"><input type="text" id="sssss-name" placeholder="馬名"><input type="number" id="sssss-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="ssssd"><h5 >(SSSSD)</h5><div class="autocomplete-wrapper"><input type="text" id="ssssd-name" placeholder="馬名"><input type="number" id="ssssd-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="sssds"><h5 >(SSSDS)</h5><div class="autocomplete-wrapper"><input type="text" id="sssds-name" placeholder="馬名"><input type="number" id="sssds-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="sssdd"><h5 >(SSSDD)</h5><div class="autocomplete-wrapper"><input type="text" id="sssdd-name" placeholder="馬名"><input type="number" id="sssdd-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="ssdss"><h5 >(SSDSS)</h5><div class="autocomplete-wrapper"><input type="text" id="ssdss-name" placeholder="馬名"><input type="number" id="ssdss-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="ssdsd"><h5 >(SSDSD)</h5><div class="autocomplete-wrapper"><input type="text" id="ssdsd-name" placeholder="馬名"><input type="number" id="ssdsd-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="ssdds"><h5 >(SSDDS)</h5><div class="autocomplete-wrapper"><input type="text" id="ssdds-name" placeholder="馬名"><input type="number" id="ssdds-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="ssddd"><h5 >(SSDDD)</h5><div class="autocomplete-wrapper"><input type="text" id="ssddd-name" placeholder="馬名"><input type="number" id="ssddd-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="sdsss"><h5 >(SDSSS)</h5><div class="autocomplete-wrapper"><input type="text" id="sdsss-name" placeholder="馬名"><input type="number" id="sdsss-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="sdssd"><h5 >(SDSSD)</h5><div class="autocomplete-wrapper"><input type="text" id="sdssd-name" placeholder="馬名"><input type="number" id="sdssd-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="sdsds"><h5 >(SDSDS)</h5><div class="autocomplete-wrapper"><input type="text" id="sdsds-name" placeholder="馬名"><input type="number" id="sdsds-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="sdsdd"><h5 >(SDSDD)</h5><div class="autocomplete-wrapper"><input type="text" id="sdsdd-name" placeholder="馬名"><input type="number" id="sdsdd-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="sddss"><h5 >(SDDSS)</h5><div class="autocomplete-wrapper"><input type="text" id="sddss-name" placeholder="馬名"><input type="number" id="sddss-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="sddsd"><h5 >(SDDSD)</h5><div class="autocomplete-wrapper"><input type="text" id="sddsd-name" placeholder="馬名"><input type="number" id="sddsd-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="sddds"><h5 >(SDDDS)</h5><div class="autocomplete-wrapper"><input type="text" id="sddds-name" placeholder="馬名"><input type="number" id="sddds-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="sdddd"><h5 >(SDDDD)</h5><div class="autocomplete-wrapper"><input type="text" id="sdddd-name" placeholder="馬名"><input type="number" id="sdddd-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="dssss"><h5 >(DSSSS)</h5><div class="autocomplete-wrapper"><input type="text" id="dssss-name" placeholder="馬名"><input type="number" id="dssss-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="dsssd"><h5 >(DSSSD)</h5><div class="autocomplete-wrapper"><input type="text" id="dsssd-name" placeholder="馬名"><input type="number" id="dsssd-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="dssds"><h5 >(DSSDS)</h5><div class="autocomplete-wrapper"><input type="text" id="dssds-name" placeholder="馬名"><input type="number" id="dssds-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="dssdd"><h5 >(DSSDD)</h5><div class="autocomplete-wrapper"><input type="text" id="dssdd-name" placeholder="馬名"><input type="number" id="dssdd-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="dsdss"><h5 >(DSDSS)</h5><div class="autocomplete-wrapper"><input type="text" id="dsdss-name" placeholder="馬名"><input type="number" id="dsdss-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="dsdsd"><h5 >(DSDSD)</h5><div class="autocomplete-wrapper"><input type="text" id="dsdsd-name" placeholder="馬名"><input type="number" id="dsdsd-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="dsdds"><h5 >(DSDDS)</h5><div class="autocomplete-wrapper"><input type="text" id="dsdds-name" placeholder="馬名"><input type="number" id="dsdds-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="dsddd"><h5 >(DSDDD)</h5><div class="autocomplete-wrapper"><input type="text" id="dsddd-name" placeholder="馬名"><input type="number" id="dsddd-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="ddsss"><h5 >(DDSSS)</h5><div class="autocomplete-wrapper"><input type="text" id="ddsss-name" placeholder="馬名"><input type="number" id="ddsss-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="ddssd"><h5 >(DDSSD)</h5><div class="autocomplete-wrapper"><input type="text" id="ddssd-name" placeholder="馬名"><input type="number" id="ddssd-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="ddsds"><h5 >(DDSDS)</h5><div class="autocomplete-wrapper"><input type="text" id="ddsds-name" placeholder="馬名"><input type="number" id="ddsds-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="ddsdd"><h5 >(DDSDD)</h5><div class="autocomplete-wrapper"><input type="text" id="ddsdd-name" placeholder="馬名"><input type="number" id="ddsdd-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="dddss"><h5 >(DDDSS)</h5><div class="autocomplete-wrapper"><input type="text" id="dddss-name" placeholder="馬名"><input type="number" id="dddss-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="dddsd"><h5 >(DDDSD)</h5><div class="autocomplete-wrapper"><input type="text" id="dddsd-name" placeholder="馬名"><input type="number" id="dddsd-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="dddds"><h5 >(DDDDS)</h5><div class="autocomplete-wrapper"><input type="text" id="dddds-name" placeholder="馬名"><input type="number" id="dddds-birth-year" placeholder="生年"></div></div>
-            <div class="horse-input-group" data-generation="5" data-horse-id="ddddd"><h5 >(DDDDD)</h5><div class="autocomplete-wrapper"><input type="text" id="ddddd-name" placeholder="馬名"><input type="number" id="ddddd-birth-year" placeholder="生年"></div></div>
+            
+            <!-- フォームはJSで動的に生成されます -->
+            <div id="dynamic-form-container"></div>
         </section>
 
-        <!-- 血統表プレビューエリア (内容はv0.4から変更なし) -->
+        <!-- 血統表プレビューエリア -->
         <section class="preview-container tab-content" id="preview-tab">
             <h2><span id="preview-title">血統表プレビュー</span></h2>
             <div class="pedigree-table-wrapper">
                 <table class="pedigree-table">
-                    <tbody>
-                        <tr>
-                            <td rowspan="16" class="pedigree-cell sire-cell" data-col="1"><span id="preview-s-name" data-default="父"></span><small id="preview-s-birth-year"></small></td>
-                            <td rowspan="8"  class="pedigree-cell sire-cell" data-col="2"><span id="preview-ss-name" data-default="父の父"></span><small id="preview-ss-birth-year"></small></td>
-                            <td rowspan="4"  class="pedigree-cell sire-cell" data-col="3"><span id="preview-sss-name" data-default="父父父"></span><small id="preview-sss-birth-year"></small></td>
-                            <td rowspan="2"  class="pedigree-cell sire-cell" data-col="4"><span id="preview-ssss-name" data-default="父父父父"></span><small id="preview-ssss-birth-year"></small></td>
-                            <td class="pedigree-cell sire-cell" data-col="5"><span id="preview-sssss-name" data-default=""></span><small id="preview-sssss-birth-year"></small></td>
-                        </tr>
-                        <tr><td class="pedigree-cell dam-cell" data-col="5"><span id="preview-ssssd-name" data-default=""></span><small id="preview-ssssd-birth-year"></small></td></tr>
-                        <tr><td rowspan="2" class="pedigree-cell dam-cell" data-col="4"><span id="preview-sssd-name" data-default="父父父母"></span><small id="preview-sssd-birth-year"></small></td><td class="pedigree-cell sire-cell" data-col="5"><span id="preview-sssds-name" data-default=""></span><small id="preview-sssds-birth-year"></small></td></tr>
-                        <tr><td class="pedigree-cell dam-cell" data-col="5"><span id="preview-sssdd-name" data-default=""></span><small id="preview-sssdd-birth-year"></small></td></tr>
-                        <tr><td rowspan="4" class="pedigree-cell dam-cell" data-col="3"><span id="preview-ssd-name" data-default="父父母"></span><small id="preview-ssd-birth-year"></small></td><td rowspan="2" class="pedigree-cell sire-cell" data-col="4"><span id="preview-ssds-name" data-default="父父母父"></span><small id="preview-ssds-birth-year"></small></td><td class="pedigree-cell sire-cell" data-col="5"><span id="preview-ssdss-name" data-default=""></span><small id="preview-ssdss-birth-year"></small></td></tr>
-                        <tr><td class="pedigree-cell dam-cell" data-col="5"><span id="preview-ssdsd-name" data-default=""></span><small id="preview-ssdsd-birth-year"></small></td></tr>
-                        <tr><td rowspan="2" class="pedigree-cell dam-cell" data-col="4"><span id="preview-ssdd-name" data-default="父父母母"></span><small id="preview-ssdd-birth-year"></small></td><td class="pedigree-cell sire-cell" data-col="5"><span id="preview-ssdds-name" data-default=""></span><small id="preview-ssdds-birth-year"></small></td></tr>
-                        <tr><td class="pedigree-cell dam-cell" data-col="5"><span id="preview-ssddd-name" data-default=""></span><small id="preview-ssddd-birth-year"></small></td></tr>
-                        <tr><td rowspan="8" class="pedigree-cell dam-cell" data-col="2"><span id="preview-sd-name" data-default="父の母"></span><small id="preview-sd-birth-year"></small></td><td rowspan="4" class="pedigree-cell sire-cell" data-col="3"><span id="preview-sds-name" data-default="父母父"></span><small id="preview-sds-birth-year"></small></td><td rowspan="2" class="pedigree-cell sire-cell" data-col="4"><span id="preview-sdss-name" data-default="父母父父"></span><small id="preview-sdss-birth-year"></small></td><td class="pedigree-cell sire-cell" data-col="5"><span id="preview-sdsss-name" data-default=""></span><small id="preview-sdsss-birth-year"></small></td></tr>
-                        <tr><td class="pedigree-cell dam-cell" data-col="5"><span id="preview-sdssd-name" data-default=""></span><small id="preview-sdssd-birth-year"></small></td></tr>
-                        <tr><td rowspan="2" class="pedigree-cell dam-cell" data-col="4"><span id="preview-sdsd-name" data-default="父母父母"></span><small id="preview-sdsd-birth-year"></small></td><td class="pedigree-cell sire-cell" data-col="5"><span id="preview-sdsds-name" data-default=""></span><small id="preview-sdsds-birth-year"></small></td></tr>
-                        <tr><td class="pedigree-cell dam-cell" data-col="5"><span id="preview-sdsdd-name" data-default=""></span><small id="preview-sdsdd-birth-year"></small></td></tr>
-                        <tr><td rowspan="4" class="pedigree-cell dam-cell" data-col="3"><span id="preview-sdd-name" data-default="父母母"></span><small id="preview-sdd-birth-year"></small></td><td rowspan="2" class="pedigree-cell sire-cell" data-col="4"><span id="preview-sdds-name" data-default="父母母父"></span><small id="preview-sdds-birth-year"></small></td><td class="pedigree-cell sire-cell" data-col="5"><span id="preview-sddss-name" data-default=""></span><small id="preview-sddss-birth-year"></small></td></tr>
-                        <tr><td class="pedigree-cell dam-cell" data-col="5"><span id="preview-sddsd-name" data-default=""></span><small id="preview-sddsd-birth-year"></small></td></tr>
-                        <tr><td rowspan="2" class="pedigree-cell dam-cell" data-col="4"><span id="preview-sddd-name" data-default="父母母母"></span><small id="preview-sddd-birth-year"></small></td><td class="pedigree-cell sire-cell" data-col="5"><span id="preview-sddds-name" data-default=""></span><small id="preview-sddds-birth-year"></small></td></tr>
-                        <tr><td class="pedigree-cell dam-cell" data-col="5"><span id="preview-sdddd-name" data-default=""></span><small id="preview-sdddd-birth-year"></small></td></tr>
-                        <tr>
-                            <td rowspan="16" class="pedigree-cell dam-cell" data-col="1"><span id="preview-d-name" data-default="母"></span><small id="preview-d-birth-year"></small></td>
-                            <td rowspan="8" class="pedigree-cell sire-cell" data-col="2"><span id="preview-ds-name" data-default="母の父"></span><small id="preview-ds-birth-year"></small></td>
-                            <td rowspan="4" class="pedigree-cell sire-cell" data-col="3"><span id="preview-dss-name" data-default="母父父"></span><small id="preview-dss-birth-year"></small></td>
-                            <td rowspan="2" class="pedigree-cell sire-cell" data-col="4"><span id="preview-dsss-name" data-default="母父父父"></span><small id="preview-dsss-birth-year"></small></td>
-                            <td class="pedigree-cell sire-cell" data-col="5"><span id="preview-dssss-name" data-default=""></span><small id="preview-dssss-birth-year"></small></td>
-                        </tr>
-                        <tr><td class="pedigree-cell dam-cell" data-col="5"><span id="preview-dsssd-name" data-default=""></span><small id="preview-dsssd-birth-year"></small></td></tr>
-                        <tr><td rowspan="2" class="pedigree-cell dam-cell" data-col="4"><span id="preview-dssd-name" data-default="母父父母"></span><small id="preview-dssd-birth-year"></small></td><td class="pedigree-cell sire-cell" data-col="5"><span id="preview-dssds-name" data-default=""></span><small id="preview-dssds-birth-year"></small></td></tr>
-                        <tr><td class="pedigree-cell dam-cell" data-col="5"><span id="preview-dssdd-name" data-default=""></span><small id="preview-dssdd-birth-year"></small></td></tr>
-                        <tr><td rowspan="4" class="pedigree-cell dam-cell" data-col="3"><span id="preview-dsd-name" data-default="母父母"></span><small id="preview-dsd-birth-year"></small></td><td rowspan="2" class="pedigree-cell sire-cell" data-col="4"><span id="preview-dsds-name" data-default="母父母父"></span><small id="preview-dsds-birth-year"></small></td><td class="pedigree-cell sire-cell" data-col="5"><span id="preview-dsdss-name" data-default=""></span><small id="preview-dsdss-birth-year"></small></td></tr>
-                        <tr><td class="pedigree-cell dam-cell" data-col="5"><span id="preview-dsdsd-name" data-default=""></span><small id="preview-dsdsd-birth-year"></small></td></tr>
-                        <tr><td rowspan="2" class="pedigree-cell dam-cell" data-col="4"><span id="preview-dsdd-name" data-default="母父母母"></span><small id="preview-dsdd-birth-year"></small></td><td class="pedigree-cell sire-cell" data-col="5"><span id="preview-dsdds-name" data-default=""></span><small id="preview-dsdds-birth-year"></small></td></tr>
-                        <tr><td class="pedigree-cell dam-cell" data-col="5"><span id="preview-dsddd-name" data-default=""></span><small id="preview-dsddd-birth-year"></small></td></tr>
-                        <tr><td rowspan="8" class="pedigree-cell dam-cell" data-col="2"><span id="preview-dd-name" data-default="母の母"></span><small id="preview-dd-birth-year"></small></td><td rowspan="4" class="pedigree-cell sire-cell" data-col="3"><span id="preview-dds-name" data-default="母母父"></span><small id="preview-dds-birth-year"></small></td><td rowspan="2" class="pedigree-cell sire-cell" data-col="4"><span id="preview-ddss-name" data-default="母母父父"></span><small id="preview-ddss-birth-year"></small></td><td class="pedigree-cell sire-cell" data-col="5"><span id="preview-ddsss-name" data-default=""></span><small id="preview-ddsss-birth-year"></small></td></tr>
-                        <tr><td class="pedigree-cell dam-cell" data-col="5"><span id="preview-ddssd-name" data-default=""></span><small id="preview-ddssd-birth-year"></small></td></tr>
-                        <tr><td rowspan="2" class="pedigree-cell dam-cell" data-col="4"><span id="preview-ddsd-name" data-default="母母父母"></span><small id="preview-ddsd-birth-year"></small></td><td class="pedigree-cell sire-cell" data-col="5"><span id="preview-ddsds-name" data-default=""></span><small id="preview-ddsds-birth-year"></small></td></tr>
-                        <tr><td class="pedigree-cell dam-cell" data-col="5"><span id="preview-ddsdd-name" data-default=""></span><small id="preview-ddsdd-birth-year"></small></td></tr>
-                        <tr><td rowspan="4" class="pedigree-cell dam-cell" data-col="3"><span id="preview-ddd-name" data-default="母母母"></span><small id="preview-ddd-birth-year"></small></td><td rowspan="2" class="pedigree-cell sire-cell" data-col="4"><span id="preview-ddds-name" data-default="母母母父"></span><small id="preview-ddds-birth-year"></small></td><td class="pedigree-cell sire-cell" data-col="5"><span id="preview-dddss-name" data-default=""></span><small id="preview-dddss-birth-year"></small></td></tr>
-                        <tr><td class="pedigree-cell dam-cell" data-col="5"><span id="preview-dddsd-name" data-default=""></span><small id="preview-dddsd-birth-year"></small></td></tr>
-                        <tr><td rowspan="2" class="pedigree-cell dam-cell" data-col="4"><span id="preview-dddd-name" data-default="母母母母"></span><small id="preview-dddd-birth-year"></small></td><td class="pedigree-cell sire-cell" data-col="5"><span id="preview-dddds-name" data-default=""></span><small id="preview-dddds-birth-year"></small></td></tr>
-                        <tr><td class="pedigree-cell dam-cell" data-col="5"><span id="preview-ddddd-name" data-default=""></span><small id="preview-ddddd-birth-year"></small></td></tr>
+                    <tbody id="preview-table-body">
+                        <!-- テーブル内容はJSで動的に生成されます -->
                     </tbody>
                 </table>
             </div>
