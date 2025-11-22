@@ -228,7 +228,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- DB・ファイル操作 ---
     function handleLoadDB() {
         const input = document.createElement('input');
-        input.type = 'file'; input.accept = '.csv';
+        input.type = 'file';
+        // ★修正: スマホ環境での認識漏れを防ぐため、MIMEタイプとtext/plainを追加
+        input.accept = '.csv,text/csv,text/plain'; 
+        
         input.onchange = (e) => {
             const file = e.target.files[0];
             if (file) {
