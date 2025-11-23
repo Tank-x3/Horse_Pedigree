@@ -60,6 +60,47 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- ボタン・モーダル初期化 ---
+    function initButtons() {
+        const loadBtn = document.getElementById('load-db');
+        const saveLocalBtn = document.getElementById('save-local'); // ★変更
+        const saveBtn = document.getElementById('save-db');
+        const imgBtn = document.getElementById('save-image');
+        const cancelSaveBtn = document.getElementById('cancel-save-btn');
+        const execSaveBtn = document.getElementById('execute-save-btn');
+
+        if(loadBtn) loadBtn.onclick = handleLoadDB;
+        if(saveLocalBtn) saveLocalBtn.onclick = handleSaveLocal; // ★変更
+        if(saveBtn) saveBtn.onclick = handleSaveDBRequest;
+        if(imgBtn) imgBtn.onclick = handleSaveImage;
+        
+        if(cancelSaveBtn) cancelSaveBtn.onclick = () => {
+            document.getElementById('save-confirm-modal-overlay').classList.add('hidden');
+            state.pendingSaveData = null;
+        };
+        if(execSaveBtn) execSaveBtn.onclick = executeSaveDB;
+    }
+
+    function initModal() {
+        const modalOverlay = document.getElementById('startup-modal-overlay');
+        const startCloudBtn = document.getElementById('start-cloud-btn-modal'); // ★変更
+        const loadLocalLink = document.getElementById('load-local-link-modal'); // ★変更
+        const migrationModal = document.getElementById('migration-modal-overlay');
+        const closeMigrationBtn = document.getElementById('close-migration-wizard');
+        
+        // クラウド開始
+        if(startCloudBtn) startCloudBtn.onclick = () => modalOverlay.classList.add('hidden');
+        
+        // ローカル読み込み開始
+        if(loadLocalLink) loadLocalLink.onclick = (e) => {
+            e.preventDefault();
+            modalOverlay.classList.add('hidden');
+            handleLoadDB();
+        };
+        
+        if(closeMigrationBtn) closeMigrationBtn.onclick = () => migrationModal.classList.add('hidden');
+    }
+
     // --- DOM生成ロジック ---
     function initDOM() {
         createFormGroups();
@@ -172,7 +213,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getGeneration(id) { if (id === 'target') return 0; return id.length; }
-    // --- UI初期化 ---
     function initUI() {
         initFormPreviewSync();
         initResponsiveTabs();
@@ -180,38 +220,13 @@ document.addEventListener('DOMContentLoaded', () => {
         initInputValidation();
     }
 
-    function initButtons() {
-        const loadBtn = document.getElementById('load-db');
-        const dlBtn = document.getElementById('bulk-register-csv');
-        const saveBtn = document.getElementById('save-db');
-        const imgBtn = document.getElementById('save-image');
-        const cancelSaveBtn = document.getElementById('cancel-save-btn');
-        const execSaveBtn = document.getElementById('execute-save-btn');
-
-        if(loadBtn) loadBtn.onclick = handleLoadDB;
-        if(dlBtn) dlBtn.onclick = handleDownloadTemplate;
-        if(saveBtn) {
-            saveBtn.textContent = 'サーバーに保存';
-            saveBtn.onclick = handleSaveDBRequest;
-        }
-        if(imgBtn) imgBtn.onclick = handleSaveImage;
-        
-        if(cancelSaveBtn) cancelSaveBtn.onclick = () => {
-            document.getElementById('save-confirm-modal-overlay').classList.add('hidden');
-            state.pendingSaveData = null;
-        };
-        if(execSaveBtn) execSaveBtn.onclick = executeSaveDB;
-    }
-
-    // --- 欠落していた関数群 ---
     function initGenerationSelector() {
         const selectors = document.querySelectorAll('input[name="generation"]');
         if (selectors.length === 0) return;
         selectors.forEach(radio => {
-            // onclickで上書きすることで重複登録を回避
             radio.onclick = handleGenerationChange;
         });
-        handleGenerationChange(); // 初期状態反映
+        handleGenerationChange();
     }
 
     function handleGenerationChange() {
@@ -238,7 +253,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const el = document.getElementById(inId);
                 if(el) el.addEventListener('input', () => updatePreview(id));
             });
-            // 初期表示の更新
             updatePreview(id);
         });
     }
@@ -286,14 +300,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!response.ok) throw new Error('Network response was not ok');
             const data = await response.json();
             
-            // ★修正: clear() を削除し、サーバーデータを既存データにマージ（上書き）する
-            // state.db.clear(); 
-            
+            // サーバーデータをマージ
             data.forEach(row => {
                 if(row.uuid) {
                     row.id = row.uuid;
                     row.is_fictional = (row.is_fictional === 'true' || row.is_fictional === true);
-                    // サーバーのデータを優先してセット
                     state.db.set(row.uuid, row);
                 }
             });
@@ -349,8 +360,16 @@ document.addEventListener('DOMContentLoaded', () => {
             saveBtn.textContent = isLoading ? '通信中...' : 'サーバーに保存';
         }
     }
-    // --- データ保存ロジック ---
-    // --- DB保存ロジック (GAS対応版) ---
+    // ★追加: ローカルCSV保存
+    function handleSaveLocal() {
+        if (!confirm('現在のデータベースの内容をCSVファイルとしてダウンロードします。\nこの操作では、クラウド上の共有データベースには保存されません。\n\n続行しますか？')) {
+            return;
+        }
+        // 全データをCSV化してダウンロード
+        const csvString = convertDbToCSV(state.db);
+        downloadFile(csvString, 'pedigree_db_local.csv', 'text/csv');
+    }
+
     // --- DB保存ロジック ---
     async function handleSaveDBRequest() {
         const hasInput = ALL_IDS.some(id => {
@@ -385,17 +404,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
                     // 架空馬判定 (カナ名+生年)
-                    // ★修正: 架空フラグが不一致でも名前・年が合えば同一視し、ONの方に寄せる
                     else if (existingHorse.name_ja === formHorse.name_ja && String(existingHorse.birth_year) === String(formHorse.birth_year)) {
-                        // 名前・年が一致する場合、相手が架空なら統合対象
-                        // 自分が架空で相手が実在(フラグなし)の場合も統合対象とする
                         targetUUID = existingId;
                         dbHorse = existingHorse;
                         break;
                     }
                 }
             } else {
-                // UUIDが一致するデータがある
                 dbHorse = state.db.get(targetUUID);
             }
 
@@ -412,35 +427,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
 
-                // ★修正: 架空フラグの不一致も検知し、自動的にTRUE（架空）を優先
                 if (dbHorse.is_fictional !== formHorse.is_fictional) {
-                    if (formHorse.is_fictional) {
-                        // フォームが架空(TRUE)ならDBを更新
-                        dbHorse.is_fictional = true; 
-                    }
-                    // DBがTRUEでフォームがFALSE(つけ忘れ)なら、DBのTRUEを維持（何もしない）
+                    if (formHorse.is_fictional) dbHorse.is_fictional = true; 
                 }
 
                 if (diffs.length > 0) {
-                    // UUIDを統合した状態でコンフリクトリストへ
                     formHorse.id = targetUUID; 
                     conflicts.push({ horse: formHorse, dbHorse, diffs });
                 } else {
                     // 変更なし、または空欄埋め -> マージ
                     Object.assign(dbHorse, formHorse);
-                    // マージした結果、ローカルの古いUUIDからサーバーの正しいUUIDに変わる場合があるため
-                    // state.db上のエントリを整理する必要があるが、postDBは全データを送るため
-                    // ここではdbHorse（参照）を更新しておけばOK。
-                    // ただし、ローカル独自のUUIDでstate.dbに登録されているエントリは削除すべき。
                     if (formHorse.id && formHorse.id !== targetUUID) {
                         state.db.delete(formHorse.id);
                         state.db.set(targetUUID, dbHorse);
                     }
                 }
             } else {
-                // 新規データ
-                if (!formHorse.id) formHorse.id = generateUUID();
-                state.db.set(formHorse.id, formHorse);
+                // 完全新規
+                formData.set(tempId, formHorse);
             }
         }
 
@@ -448,12 +452,41 @@ document.addEventListener('DOMContentLoaded', () => {
             state.pendingSaveData = formData;
             showSaveConfirmModal(conflicts);
         } else {
-            if (state.db.size > 0) {
-                postDB(state.db);
-            } else {
-                alert('保存するデータがありません。');
-            }
+            saveDataDirectly(formData);
         }
+    }
+
+    function showSaveConfirmModal(conflicts) {
+        const listContainer = document.getElementById('save-confirm-list');
+        listContainer.innerHTML = '';
+
+        conflicts.forEach((conflict, index) => {
+            const card = document.createElement('div');
+            card.className = 'confirm-card';
+            
+            let tableRows = '';
+            const fieldNames = { 
+                name_ja: 'カナ馬名', name_en: '欧字馬名', birth_year: '生年', 
+                country: '生産国', color: '毛色', family_no: 'F-No.', lineage: '系統'
+            };
+            conflict.diffs.forEach(d => {
+                tableRows += `<tr><th>${fieldNames[d.field] || d.field}</th><td>${d.old}</td><td class="diff-highlight">${d.new}</td></tr>`;
+            });
+
+            const tempKey = Array.from(state.pendingSaveData.entries()).find(([k, v]) => v === conflict.horse)[0];
+
+            card.innerHTML = `
+                <h4>${conflict.dbHorse.name_ja || conflict.dbHorse.name_en} <small>(ID: ...${conflict.dbHorse.id.slice(-4)})</small></h4>
+                <table class="diff-table"><thead><tr><th>項目</th><th>変更前</th><th>変更後</th></tr></thead><tbody>${tableRows}</tbody></table>
+                <div class="confirm-options">
+                    <label><input type="radio" name="action_${index}" value="update" checked> 情報を更新する</label>
+                    <label><input type="radio" name="action_${index}" value="new"> 新しい馬として登録する</label>
+                </div>
+            `;
+            card.dataset.tempId = tempKey;
+            listContainer.appendChild(card);
+        });
+        document.getElementById('save-confirm-modal-overlay').classList.remove('hidden');
     }
 
     function executeSaveDB() {
@@ -462,27 +495,69 @@ document.addEventListener('DOMContentLoaded', () => {
         
         cards.forEach((card, index) => {
             const actionInput = card.querySelector(`input[name="action_${index}"]:checked`);
-            const tempId = card.dataset.tempId;
-            const formHorse = state.pendingSaveData.get(tempId);
-
             if (actionInput && actionInput.value === 'new') {
-                // 新規として登録 (新しいUUIDを発行してDBに追加)
-                formHorse.id = generateUUID();
-                state.db.set(formHorse.id, formHorse);
+                const tempId = card.dataset.tempId;
+                const formHorse = state.pendingSaveData.get(tempId);
+                if (formHorse) {
+                    formHorse.id = null; 
+                    state.pendingSaveData.set(tempId, formHorse);
+                }
             } else {
-                // 更新 (既存IDのデータを上書き)
+                const tempId = card.dataset.tempId;
+                const formHorse = state.pendingSaveData.get(tempId);
                 const dbHorse = state.db.get(formHorse.id);
-                if (dbHorse) Object.assign(dbHorse, formHorse);
+                if(dbHorse) Object.assign(dbHorse, formHorse);
             }
         });
 
-        postDB(state.db);
-        
+        saveDataDirectly(state.pendingSaveData);
         document.getElementById('save-confirm-modal-overlay').classList.add('hidden');
         state.pendingSaveData = null;
     }
 
-    // --- その他ヘルパー ---
+    function saveDataDirectly(formData) {
+        // 1. 未発行IDの解決
+        for (const horse of formData.values()) {
+            if (!horse.id) {
+                horse.id = generateUUID();
+            }
+        }
+
+        // 2. 親子リンクの解決
+        ALL_IDS.forEach(id => {
+            const horse = formData.get(id);
+            if (!horse) return;
+
+            let sireIdPrefix, damIdPrefix;
+            if (id === 'target') { sireIdPrefix = 's'; damIdPrefix = 'd'; }
+            else { sireIdPrefix = id + 's'; damIdPrefix = id + 'd'; }
+
+            if (formData.has(sireIdPrefix)) {
+                horse.sire_id = formData.get(sireIdPrefix).id;
+            }
+            if (formData.has(damIdPrefix)) {
+                horse.dam_id = formData.get(damIdPrefix).id;
+            }
+        });
+
+        // 3. 既存DBへのマージ
+        const newDb = new Map(state.db);
+        for (const horse of formData.values()) {
+            if (newDb.has(horse.id)) {
+                Object.assign(newDb.get(horse.id), horse);
+            } else {
+                newDb.set(horse.id, horse);
+            }
+        }
+
+        // 4. 送信
+        if (newDb.size > 0) {
+            postDB(newDb);
+        } else {
+            alert('保存するデータがありません。');
+        }
+    }
+    // --- データ取得・変換 ---
     function getFormDataAsMap() {
         const formData = new Map();
         ALL_IDS.forEach(id => {
@@ -528,6 +603,123 @@ document.addEventListener('DOMContentLoaded', () => {
         return '';
     }
 
+    function convertDbToCSV(dbMap) {
+        const header = 'uuid,name_ja,name_en,birth_year,is_fictional,country,color,family_no,lineage,sire_id,dam_id,sire_name,dam_name';
+        const rows = [];
+        for (const h of dbMap.values()) {
+            const row = [
+                h.id, h.name_ja, h.name_en, h.birth_year, h.is_fictional,
+                h.country, h.color, h.family_no, h.lineage,
+                h.sire_id || '', h.dam_id || '',
+                h.sire_name || '', h.dam_name || ''
+            ];
+            rows.push(row.join(','));
+        }
+        return `${header}\n${rows.join('\n')}`;
+    }
+
+    function downloadFile(content, fileName, mimeType) {
+        const a = document.createElement('a');
+        let url;
+        if (content.startsWith('data:')) { a.href = content; }
+        else {
+            const blob = new Blob([content], { type: mimeType });
+            url = URL.createObjectURL(blob);
+            a.href = url;
+        }
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        if (url) URL.revokeObjectURL(url);
+    }
+
+    // --- CSV読み込み & マイグレーション ---
+    function handleLoadDB() {
+        const input = document.createElement('input');
+        input.type = 'file'; input.accept = '.csv,text/csv,text/plain';
+        input.onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => parseCSV(event.target.result);
+                reader.readAsText(file);
+            }
+        };
+        input.click();
+    }
+    
+    function parseCSV(csvText) {
+        // state.db.clear(); // マージのため削除
+        const lines = csvText.trim().split(/\r?\n/);
+        const header = lines.shift().split(',').map(h => h.trim());
+        const isOldFormat = !header.includes('uuid');
+        const data = lines.map(line => {
+            const values = line.split(',');
+            const obj = {};
+            header.forEach((key, i) => obj[key] = values[i] ? values[i].trim() : '');
+            return obj;
+        });
+        const tempMap = new Map();
+        data.forEach(row => {
+            const nameJa = isOldFormat ? (/[a-zA-Z]/.test(row.name) ? '' : row.name) : row.name_ja;
+            const nameEn = isOldFormat ? (/[a-zA-Z]/.test(row.name) ? row.name : '') : row.name_en;
+            const birthYear = row.birth_year;
+            const uniqueKey = `${nameJa || nameEn}_${birthYear}`;
+            let uuid = tempMap.get(uniqueKey);
+            let horse = uuid ? state.db.get(uuid) : (row.uuid ? state.db.get(row.uuid) : null);
+
+            if (!horse) {
+                uuid = isOldFormat ? generateUUID() : (row.uuid || generateUUID());
+                tempMap.set(uniqueKey, uuid);
+                if (isOldFormat) {
+                    horse = {
+                        id: uuid, name_ja: nameJa, name_en: nameEn, birth_year: birthYear,
+                        is_fictional: false, sire_id: null, dam_id: null,
+                        temp_sire_key: (row.sire_name && row.sire_birth_year) ? `${row.sire_name}_${row.sire_birth_year}` : null,
+                        temp_dam_key: (row.dam_name && row.dam_birth_year) ? `${row.dam_name}_${row.dam_birth_year}` : null,
+                        sire_name: row.sire_name || '', dam_name: row.dam_name || '',
+                        country: '', color: '', family_no: '', lineage: ''
+                    };
+                } else {
+                    horse = {
+                        id: uuid, name_ja: nameJa, name_en: nameEn, birth_year: birthYear,
+                        is_fictional: row.is_fictional === 'true',
+                        country: row.country, color: row.color,
+                        family_no: row.family_no, lineage: row.lineage,
+                        sire_id: row.sire_id || null, dam_id: row.dam_id || null,
+                        sire_name: row.sire_name || '', dam_name: row.dam_name || ''
+                    };
+                }
+                state.db.set(uuid, horse);
+            }
+        });
+        if (isOldFormat) {
+            state.db.forEach(horse => {
+                if (horse.temp_sire_key) {
+                    const sireUuid = tempMap.get(horse.temp_sire_key);
+                    if (sireUuid) { horse.sire_id = sireUuid; if (!horse.is_fictional) horse.sire_name = ''; }
+                }
+                if (horse.temp_dam_key) {
+                    const damUuid = tempMap.get(horse.temp_dam_key);
+                    if (damUuid) { horse.dam_id = damUuid; if (!horse.is_fictional) horse.dam_name = ''; }
+                }
+                delete horse.temp_sire_key; delete horse.temp_dam_key;
+            });
+            document.getElementById('migration-modal-overlay').classList.remove('hidden');
+        }
+        alert(`${data.length}件のデータを読み込みました。\n現在の全データ数: ${state.db.size}件`);
+        state.isDirty = false;
+    }
+    function generateUUID() {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+
+    // --- UI系ヘルパー ---
     function initPageLeaveWarning() {
         window.addEventListener('beforeunload', (e) => {
             if (state.isDirty) { e.preventDefault(); e.returnValue = ''; }
@@ -537,78 +729,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const form = document.querySelector('.form-container');
         if(form) form.addEventListener('input', () => state.isDirty = true);
     }
-    // --- UI系: バリデーション, オートコンプリート ---
-    function initInputValidation() {
-        ALL_IDS.forEach(id => {
-            const jaInput = document.getElementById(`${id}-name-ja`);
-            const enInput = document.getElementById(`${id}-name-en`);
-            const fictCheck = document.getElementById(`${id}-is-fictional`);
-            if(!jaInput || !enInput || !fictCheck) return;
-
-            jaInput.addEventListener('input', () => validateInput(jaInput, 'ja'));
-            enInput.addEventListener('input', () => validateInput(enInput, 'en'));
-            
-            // 初期プレースホルダー設定
-            updatePlaceholder(fictCheck, jaInput, enInput);
-
-            fictCheck.addEventListener('change', () => {
-                updatePlaceholder(fictCheck, jaInput, enInput);
-                jaInput.classList.remove('input-error');
-                enInput.classList.remove('input-error');
-            });
-        });
-    }
-
-    function updatePlaceholder(checkbox, jaInput, enInput) {
-        if (checkbox.checked) {
-            enInput.placeholder = "欧字馬名 (任意)"; jaInput.placeholder = "カナ馬名 (必須)";
-        } else {
-            enInput.placeholder = "欧字馬名 (必須)"; jaInput.placeholder = "カナ馬名 (任意)";
-        }
-    }
-
-    function validateInput(input, type) {
-        const val = input.value;
-        if (!val) { input.classList.remove('input-error'); return; }
-        let isValid = true;
-        if (type === 'ja') isValid = /^[\u30A0-\u30FF\u30FB\u3000]+$/.test(val);
-        else if (type === 'en') isValid = /^[\x20-\x7E]+$/.test(val);
-        if (isValid) input.classList.remove('input-error');
-        else input.classList.add('input-error');
-    }
-
-    function checkRequiredFields() {
-        let hasError = false; let firstErrorId = null;
-        ALL_IDS.forEach(id => {
-            const jaInput = document.getElementById(`${id}-name-ja`);
-            const enInput = document.getElementById(`${id}-name-en`);
-            const yearInput = document.getElementById(`${id}-birth-year`);
-            const fictCheck = document.getElementById(`${id}-is-fictional`);
-            const hasInput = jaInput.value.trim() || enInput.value.trim();
-            if (id === 'target' || hasInput) {
-                const isFictional = fictCheck.checked;
-                if (!isFictional && !enInput.value.trim()) {
-                    enInput.classList.add('input-error'); hasError = true; if(!firstErrorId) firstErrorId = enInput;
-                }
-                if (isFictional && !jaInput.value.trim()) {
-                    jaInput.classList.add('input-error'); hasError = true; if(!firstErrorId) firstErrorId = jaInput;
-                }
-                if (!isFictional && !yearInput.value.trim()) {
-                    yearInput.classList.add('input-error'); hasError = true; if(!firstErrorId) firstErrorId = yearInput;
-                }
-                if (jaInput.classList.contains('input-error') || enInput.classList.contains('input-error')) {
-                    hasError = true; if(!firstErrorId) firstErrorId = jaInput.classList.contains('input-error') ? jaInput : enInput;
-                }
-            }
-        });
-        if (hasError && firstErrorId) {
-            alert('入力内容にエラーがあります。赤枠の項目を確認してください。');
-            firstErrorId.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            return false;
-        }
-        return true;
-    }
-
+    // --- オートコンプリート機能 (欠落修正) ---
     function initAutocomplete() {
         ALL_IDS.forEach(id => {
             ['name-ja', 'name-en'].forEach(suffix => {
@@ -704,147 +825,83 @@ document.addEventListener('DOMContentLoaded', () => {
             if(dJa) { dJa.value = horse.dam_name; dJa.dispatchEvent(new Event('input', { bubbles: true })); }
         }
     }
-    // --- 既存機能 (CSV互換, 画像保存) ---
-    function initModal() {
-        const modalOverlay = document.getElementById('startup-modal-overlay');
-        const createNewBtn = document.getElementById('create-new-btn-modal');
-        const loadDbBtnModal = document.getElementById('load-db-btn-modal');
-        const migrationModal = document.getElementById('migration-modal-overlay');
-        const closeMigrationBtn = document.getElementById('close-migration-wizard');
-        
-        if(createNewBtn) createNewBtn.onclick = () => modalOverlay.classList.add('hidden');
-        if(loadDbBtnModal) loadDbBtnModal.onclick = () => {
-            modalOverlay.classList.add('hidden');
-            handleLoadDB();
-        };
-        if(closeMigrationBtn) closeMigrationBtn.onclick = () => migrationModal.classList.add('hidden');
-    }
-
-    function handleDownloadTemplate() {
-        const header = 'uuid,name_ja,name_en,birth_year,is_fictional,country,color,family_no,lineage,sire_id,dam_id,sire_name,dam_name';
-        const example = `${generateUUID()},サンデーサイレンス,Sunday Silence,1986,false,USA,青鹿毛,,Halo系,,,Halo,Wishing Well`;
-        const content = `${header}\n${example}\n`;
-        downloadFile(content, 'template_v0.6.csv', 'text/csv');
-    }
-
-    function handleLoadDB() {
-        const input = document.createElement('input');
-        input.type = 'file'; input.accept = '.csv,text/csv,text/plain';
-        input.onchange = (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (event) => parseCSV(event.target.result);
-                reader.readAsText(file);
-            }
-        };
-        input.click();
-    }
-    
-    function parseCSV(csvText) {
-        // ★修正: clear()を削除してマージ挙動にする
-        // state.db.clear();
-        
-        const lines = csvText.trim().split(/\r?\n/);
-        const header = lines.shift().split(',').map(h => h.trim());
-        const isOldFormat = !header.includes('uuid');
-        
-        const data = lines.map(line => {
-            const values = line.split(',');
-            const obj = {};
-            header.forEach((key, i) => obj[key] = values[i] ? values[i].trim() : '');
-            return obj;
-        });
-        
-        const tempMap = new Map();
-
-        data.forEach(row => {
-            const nameJa = isOldFormat ? (/[a-zA-Z]/.test(row.name) ? '' : row.name) : row.name_ja;
-            const nameEn = isOldFormat ? (/[a-zA-Z]/.test(row.name) ? row.name : '') : row.name_en;
-            const birthYear = row.birth_year;
-            const uniqueKey = `${nameJa || nameEn}_${birthYear}`;
-            
-            let uuid = tempMap.get(uniqueKey);
-            // 既存DB(サーバーデータ含む)に同じUUIDがあればそれを使う
-            let horse = uuid ? state.db.get(uuid) : (row.uuid ? state.db.get(row.uuid) : null);
-
-            if (!horse) {
-                uuid = isOldFormat ? generateUUID() : (row.uuid || generateUUID());
-                tempMap.set(uniqueKey, uuid);
-                
-                if (isOldFormat) {
-                    horse = {
-                        id: uuid, name_ja: nameJa, name_en: nameEn, birth_year: birthYear,
-                        is_fictional: false, sire_id: null, dam_id: null,
-                        temp_sire_key: (row.sire_name && row.sire_birth_year) ? `${row.sire_name}_${row.sire_birth_year}` : null,
-                        temp_dam_key: (row.dam_name && row.dam_birth_year) ? `${row.dam_name}_${row.dam_birth_year}` : null,
-                        sire_name: row.sire_name || '', dam_name: row.dam_name || '',
-                        country: '', color: '', family_no: '', lineage: ''
-                    };
-                } else {
-                    horse = {
-                        id: uuid, name_ja: nameJa, name_en: nameEn, birth_year: birthYear,
-                        is_fictional: row.is_fictional === 'true',
-                        country: row.country, color: row.color,
-                        family_no: row.family_no, lineage: row.lineage,
-                        sire_id: row.sire_id || null, dam_id: row.dam_id || null,
-                        sire_name: row.sire_name || '', dam_name: row.dam_name || ''
-                    };
-                }
-                state.db.set(uuid, horse);
-            }
-        });
-
-        if (isOldFormat) {
-            state.db.forEach(horse => {
-                if (horse.temp_sire_key) {
-                    const sireUuid = tempMap.get(horse.temp_sire_key);
-                    if (sireUuid) { horse.sire_id = sireUuid; if (!horse.is_fictional) horse.sire_name = ''; }
-                }
-                if (horse.temp_dam_key) {
-                    const damUuid = tempMap.get(horse.temp_dam_key);
-                    if (damUuid) { horse.dam_id = damUuid; if (!horse.is_fictional) horse.dam_name = ''; }
-                }
-                delete horse.temp_sire_key; delete horse.temp_dam_key;
+    function initInputValidation() {
+        ALL_IDS.forEach(id => {
+            const jaInput = document.getElementById(`${id}-name-ja`);
+            const enInput = document.getElementById(`${id}-name-en`);
+            const fictCheck = document.getElementById(`${id}-is-fictional`);
+            if(!jaInput || !enInput || !fictCheck) return;
+            jaInput.addEventListener('input', () => validateInput(jaInput, 'ja'));
+            enInput.addEventListener('input', () => validateInput(enInput, 'en'));
+            updatePlaceholder(fictCheck, jaInput, enInput);
+            fictCheck.addEventListener('change', () => {
+                updatePlaceholder(fictCheck, jaInput, enInput);
+                jaInput.classList.remove('input-error');
+                enInput.classList.remove('input-error');
             });
-            document.getElementById('migration-modal-overlay').classList.remove('hidden');
-        }
-        alert(`${data.length}件のデータを読み込みました。\n現在の全データ数: ${state.db.size}件`);
-        state.isDirty = false;
+        });
     }
-
-    function generateUUID() {
-        if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-            return v.toString(16);
+    function updatePlaceholder(checkbox, jaInput, enInput) {
+        if (checkbox.checked) {
+            enInput.placeholder = "欧字馬名 (任意)"; jaInput.placeholder = "カナ馬名 (必須)";
+        } else {
+            enInput.placeholder = "欧字馬名 (必須)"; jaInput.placeholder = "カナ馬名 (任意)";
+        }
+    }
+    function validateInput(input, type) {
+        const val = input.value;
+        if (!val) { input.classList.remove('input-error'); return; }
+        let isValid = true;
+        if (type === 'ja') isValid = /^[\u30A0-\u30FF\u30FB\u3000]+$/.test(val);
+        else if (type === 'en') isValid = /^[\x20-\x7E]+$/.test(val);
+        if (isValid) input.classList.remove('input-error');
+        else input.classList.add('input-error');
+    }
+    function checkRequiredFields() {
+        let hasError = false; let firstErrorId = null;
+        ALL_IDS.forEach(id => {
+            const jaInput = document.getElementById(`${id}-name-ja`);
+            const enInput = document.getElementById(`${id}-name-en`);
+            const yearInput = document.getElementById(`${id}-birth-year`);
+            const fictCheck = document.getElementById(`${id}-is-fictional`);
+            const hasInput = jaInput.value.trim() || enInput.value.trim();
+            if (id === 'target' || hasInput) {
+                const isFictional = fictCheck.checked;
+                if (!isFictional && !enInput.value.trim()) {
+                    enInput.classList.add('input-error'); hasError = true; if(!firstErrorId) firstErrorId = enInput;
+                }
+                if (isFictional && !jaInput.value.trim()) {
+                    jaInput.classList.add('input-error'); hasError = true; if(!firstErrorId) firstErrorId = jaInput;
+                }
+                if (!isFictional && !yearInput.value.trim()) {
+                    yearInput.classList.add('input-error'); hasError = true; if(!firstErrorId) firstErrorId = yearInput;
+                }
+                if (jaInput.classList.contains('input-error') || enInput.classList.contains('input-error')) {
+                    hasError = true; if(!firstErrorId) firstErrorId = jaInput.classList.contains('input-error') ? jaInput : enInput;
+                }
+            }
+        });
+        if (hasError && firstErrorId) {
+            alert('入力内容にエラーがあります。赤枠の項目を確認してください。');
+            firstErrorId.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return false;
+        }
+        return true;
+    }
+    function initResponsiveTabs() {
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const tabContents = document.querySelectorAll('.tab-content');
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+                tabContents.forEach(content => {
+                    content.classList.toggle('active', content.id === `${button.dataset.tab}-tab`);
+                });
+            });
         });
     }
 
-    function downloadFile(content, fileName, mimeType) {
-        const a = document.createElement('a');
-        let url;
-        if (content.startsWith('data:')) {
-            // データURLの場合 (画像)
-            a.href = content;
-        } else {
-            // テキストデータの場合 (CSV)
-            const blob = new Blob([content], { type: mimeType });
-            url = URL.createObjectURL(blob);
-            a.href = url;
-        }
-
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-
-        // Blobから生成したURLの場合は、後片付けが必要
-        if (url) {
-            URL.revokeObjectURL(url);
-        }
-    }
-    
     async function handleSaveImage() {
         const titleEl = document.getElementById('preview-title');
         const tableEl = document.querySelector('.pedigree-table');
@@ -868,18 +925,5 @@ document.addEventListener('DOMContentLoaded', () => {
             downloadFile(dataUrl, fileName, 'image/png');
         } catch (e) { console.error(e); alert('保存失敗'); }
         finally { document.body.removeChild(cloneContainer); }
-    }
-    function initResponsiveTabs() {
-        const tabButtons = document.querySelectorAll('.tab-button');
-        const tabContents = document.querySelectorAll('.tab-content');
-        tabButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                tabButtons.forEach(btn => btn.classList.remove('active'));
-                button.classList.add('active');
-                tabContents.forEach(content => {
-                    content.classList.toggle('active', content.id === `${button.dataset.tab}-tab`);
-                });
-            });
-        });
     }
 });

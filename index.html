@@ -3,22 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>5代血統表 作成ツール v0.8.0</title>
+    <title>5代血統表 作成ツール v0.8.4</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
-    <!-- キャッシュバスター追加 -->
     <link rel="stylesheet" href="css/style.css?v=0.8.0">
 </head>
 <body>
     <!-- 起動時モーダル -->
     <div class="modal-overlay" id="startup-modal-overlay">
         <div class="modal">
-            <h2>血統表作成ツール</h2>
-            <p>実行する操作を選択してください。</p>
+            <h2>血統表作成ツールへようこそ</h2>
+            <p>このツールは、クラウド上の共有データベースを使用して、<br>架空馬の血統表を作成・保存できます。</p>
             <div class="modal-buttons">
-                <button id="load-db-btn-modal">既存のDBを読み込む</button>
-                <button id="create-new-btn-modal">新規データの作成を始める</button>
+                <button id="start-cloud-btn-modal">共有データベースを使用して開始</button>
+            </div>
+            <div style="margin-top: 15px; font-size: 0.9em;">
+                <a href="#" id="load-local-link-modal">手元のCSVファイルを読み込んで開始</a>
             </div>
         </div>
     </div>
@@ -61,8 +62,9 @@
     <header class="main-header">
         <div class="header-group">
             <button id="load-db">DB読込</button>
-            <button id="bulk-register-csv">CSVテンプレートDL</button>
-            <button id="save-db">DB保存</button>
+            <!-- テンプレートDL廃止、ローカル保存追加 -->
+            <button id="save-local">ローカルに保存</button>
+            <button id="save-db">サーバーに保存</button>
         </div>
         <div class="header-group">
             <button id="save-image">血統表を画像として保存</button>
@@ -100,7 +102,7 @@
     </main>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <!-- キャッシュバスター追加 -->
-    <script src="js/script.js?v=0.8.0"></script>
+    <!-- キャッシュバスター更新 -->
+    <script src="js/script.js?v=0.8.4"></script>
 </body>
 </html>
