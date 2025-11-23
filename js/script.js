@@ -821,6 +821,30 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function downloadFile(content, fileName, mimeType) {
+        const a = document.createElement('a');
+        let url;
+        if (content.startsWith('data:')) {
+            // データURLの場合 (画像)
+            a.href = content;
+        } else {
+            // テキストデータの場合 (CSV)
+            const blob = new Blob([content], { type: mimeType });
+            url = URL.createObjectURL(blob);
+            a.href = url;
+        }
+
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        // Blobから生成したURLの場合は、後片付けが必要
+        if (url) {
+            URL.revokeObjectURL(url);
+        }
+    }
+    
     async function handleSaveImage() {
         const titleEl = document.getElementById('preview-title');
         const tableEl = document.querySelector('.pedigree-table');
