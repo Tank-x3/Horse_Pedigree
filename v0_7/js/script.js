@@ -351,100 +351,67 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // --- データ保存ロジック ---
     // --- DB保存ロジック (GAS対応版) ---
+    // --- DB保存ロジック ---
     async function handleSaveDBRequest() {
-        // 1. フォームに入力があるかチェック
+        // 入力チェック
         const hasInput = ALL_IDS.some(id => {
             const ja = document.getElementById(`${id}-name-ja`);
             const en = document.getElementById(`${id}-name-en`);
             return (ja && ja.value.trim()) || (en && en.value.trim());
         });
-
-        // 2. 入力がある場合はバリデーション
         if (hasInput && !checkRequiredFields()) return;
 
-        // 3. 保存前に最新データをFetchして同期
+        // 同期
         await fetchDB();
 
-        // 4. フォームの内容をメモリ上のDBにマージするための準備
-        // 入力がなければ formData は空の Map になる
         const formData = getFormDataAsMap();
         const conflicts = [];
 
-        // 5. フォームデータの処理 (競合チェック & マージ)
+        // フォームデータのマージと競合チェック
         for (const [tempId, formHorse] of formData.entries()) {
-            // UUIDを持っていて、かつDBに存在する場合
-            if (formHorse.id && state.db.has(formHorse.id)) {
-                const dbHorse = state.db.get(formHorse.id);
-                const diffs = [];
-                const fields = ['name_ja', 'name_en', 'birth_year', 'country', 'color', 'family_no', 'lineage'];
-                
-                fields.forEach(field => {
-                    const dbVal = String(dbHorse[field] || '').trim();
-                    const formVal = String(formHorse[field] || '').trim();
-                    if (dbVal !== '' && dbVal !== formVal) {
-                        diffs.push({ field, old: dbVal, new: formVal });
-                    }
-                });
+            if (formHorse.id) {
+                // 既存データがある場合
+                if (state.db.has(formHorse.id)) {
+                    const dbHorse = state.db.get(formHorse.id);
+                    const diffs = [];
+                    const fields = ['name_ja', 'name_en', 'birth_year', 'country', 'color', 'family_no', 'lineage'];
+                    
+                    fields.forEach(field => {
+                        const dbVal = String(dbHorse[field] || '').trim();
+                        const formVal = String(formHorse[field] || '').trim();
+                        if (dbVal !== '' && dbVal !== formVal) {
+                            diffs.push({ field, old: dbVal, new: formVal });
+                        }
+                    });
 
-                if (diffs.length > 0) {
-                    conflicts.push({ horse: formHorse, dbHorse, diffs });
+                    if (diffs.length > 0) {
+                        conflicts.push({ horse: formHorse, dbHorse, diffs });
+                    } else {
+                        // 変更なし・追記のみ -> マージ
+                        Object.assign(dbHorse, formHorse);
+                    }
                 } else {
-                    // 変更なし、または単なる追記 -> マージして更新
-                    Object.assign(dbHorse, formHorse);
+                    // UUIDはあるがサーバーにはないデータ（ローカル読み込み分など） -> 新規扱いとしてDBに追加
+                    state.db.set(formHorse.id, formHorse);
                 }
             } else {
-                // 新規データ (UUIDなし、またはDBにない) -> 新規登録
-                if (!formHorse.id) formHorse.id = generateUUID();
+                // UUIDなし -> 新規発行して追加
+                formHorse.id = generateUUID();
                 state.db.set(formHorse.id, formHorse);
             }
         }
 
-        // 6. 保存実行
         if (conflicts.length > 0) {
-            state.pendingSaveData = formData; 
+            state.pendingSaveData = formData;
             showSaveConfirmModal(conflicts);
         } else {
-            // 競合なし -> 全データを送信
-            // ★ここが重要: フォームが空でも state.db にデータがあれば送信される
+            // 全データを送信
             if (state.db.size > 0) {
                 postDB(state.db);
             } else {
                 alert('保存するデータがありません。');
             }
         }
-    }
-
-    function showSaveConfirmModal(conflicts) {
-        const listContainer = document.getElementById('save-confirm-list');
-        listContainer.innerHTML = '';
-
-        conflicts.forEach((conflict, index) => {
-            const card = document.createElement('div');
-            card.className = 'confirm-card';
-            
-            let tableRows = '';
-            const fieldNames = { 
-                name_ja: 'カナ馬名', name_en: '欧字馬名', birth_year: '生年', 
-                country: '生産国', color: '毛色', family_no: 'F-No.', lineage: '系統'
-            };
-            conflict.diffs.forEach(d => {
-                tableRows += `<tr><th>${fieldNames[d.field] || d.field}</th><td>${d.old}</td><td class="diff-highlight">${d.new}</td></tr>`;
-            });
-
-            const tempKey = Array.from(state.pendingSaveData.entries()).find(([k, v]) => v === conflict.horse)[0];
-
-            card.innerHTML = `
-                <h4>${conflict.dbHorse.name_ja || conflict.dbHorse.name_en} <small>(ID: ...${conflict.dbHorse.id.slice(-4)})</small></h4>
-                <table class="diff-table"><thead><tr><th>項目</th><th>変更前</th><th>変更後</th></tr></thead><tbody>${tableRows}</tbody></table>
-                <div class="confirm-options">
-                    <label><input type="radio" name="action_${index}" value="update" checked> 情報を更新する</label>
-                    <label><input type="radio" name="action_${index}" value="new"> 新しい馬として登録する</label>
-                </div>
-            `;
-            card.dataset.tempId = tempKey;
-            listContainer.appendChild(card);
-        });
-        document.getElementById('save-confirm-modal-overlay').classList.remove('hidden');
     }
 
     function executeSaveDB() {
@@ -454,21 +421,19 @@ document.addEventListener('DOMContentLoaded', () => {
         cards.forEach((card, index) => {
             const actionInput = card.querySelector(`input[name="action_${index}"]:checked`);
             const tempId = card.dataset.tempId;
-            // pendingSaveDataはフォームデータ(Map)
             const formHorse = state.pendingSaveData.get(tempId);
 
             if (actionInput && actionInput.value === 'new') {
-                // 新規として登録
+                // 新規として登録 (新しいUUIDを発行してDBに追加)
                 formHorse.id = generateUUID();
                 state.db.set(formHorse.id, formHorse);
             } else {
-                // 更新 (上書き)
+                // 更新 (既存IDのデータを上書き)
                 const dbHorse = state.db.get(formHorse.id);
                 if (dbHorse) Object.assign(dbHorse, formHorse);
             }
         });
 
-        // 全データを送信
         postDB(state.db);
         
         document.getElementById('save-confirm-modal-overlay').classList.add('hidden');
@@ -735,7 +700,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function parseCSV(csvText) {
-        state.db.clear();
+        // ★修正: clear()を削除してマージ挙動にする
+        // state.db.clear();
+        
         const lines = csvText.trim().split(/\r?\n/);
         const header = lines.shift().split(',').map(h => h.trim());
         const isOldFormat = !header.includes('uuid');
@@ -746,17 +713,23 @@ document.addEventListener('DOMContentLoaded', () => {
             header.forEach((key, i) => obj[key] = values[i] ? values[i].trim() : '');
             return obj;
         });
+        
         const tempMap = new Map();
+
         data.forEach(row => {
             const nameJa = isOldFormat ? (/[a-zA-Z]/.test(row.name) ? '' : row.name) : row.name_ja;
             const nameEn = isOldFormat ? (/[a-zA-Z]/.test(row.name) ? row.name : '') : row.name_en;
             const birthYear = row.birth_year;
             const uniqueKey = `${nameJa || nameEn}_${birthYear}`;
+            
             let uuid = tempMap.get(uniqueKey);
-            let horse = uuid ? state.db.get(uuid) : null;
+            // 既存DB(サーバーデータ含む)に同じUUIDがあればそれを使う
+            let horse = uuid ? state.db.get(uuid) : (row.uuid ? state.db.get(row.uuid) : null);
+
             if (!horse) {
-                uuid = isOldFormat ? generateUUID() : row.uuid;
+                uuid = isOldFormat ? generateUUID() : (row.uuid || generateUUID());
                 tempMap.set(uniqueKey, uuid);
+                
                 if (isOldFormat) {
                     horse = {
                         id: uuid, name_ja: nameJa, name_en: nameEn, birth_year: birthYear,
@@ -779,6 +752,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 state.db.set(uuid, horse);
             }
         });
+
         if (isOldFormat) {
             state.db.forEach(horse => {
                 if (horse.temp_sire_key) {
@@ -793,7 +767,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             document.getElementById('migration-modal-overlay').classList.remove('hidden');
         }
-        alert(`${state.db.size}件のデータを読み込みました。`);
+        alert(`${data.length}件のデータを読み込みました。\n現在の全データ数: ${state.db.size}件`);
         state.isDirty = false;
     }
 
