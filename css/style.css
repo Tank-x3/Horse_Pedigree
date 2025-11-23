@@ -4,6 +4,8 @@
     --dam-bg-color: #ffeeff;
     --border-color: #aaa;
     --header-height: 50px;
+    --error-color: #ffdddd; /* エラー背景色 */
+    --error-border: #ff4444; /* エラー枠色 */
 }
 
 body {
@@ -47,7 +49,7 @@ body {
     border-radius: 4px; font-size: 0.9em; margin-right: 5px; margin-bottom: 5px !important;
 }
 
-/* ★追加: 保存確認モーダル用 */
+/* 保存確認モーダル用 */
 .save-confirm-modal { text-align: left; max-width: 600px; width: 90%; }
 .save-confirm-list { max-height: 60vh; overflow-y: auto; border: 1px solid #ddd; padding: 10px; }
 .confirm-card { background: #f9f9f9; border: 1px solid #ccc; margin-bottom: 15px; padding: 15px; border-radius: 5px; }
@@ -93,7 +95,14 @@ body {
 }
 .horse-input-group input[type="text"], .horse-input-group input[type="number"] {
     padding: 5px; margin-right: 5px; margin-bottom: 5px; box-sizing: border-box;
+    border: 1px solid #ccc; /* デフォルト枠線 */
 }
+/* バリデーションエラー時のスタイル */
+.input-error {
+    background-color: var(--error-color) !important;
+    border: 1px solid var(--error-border) !important;
+}
+
 .input-row { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
 .fictional-check-label { font-size: 0.85em; font-weight: normal; margin-left: 10px; }
 
@@ -104,6 +113,7 @@ body {
 .input-name-ja, .input-name-en { width: 12em; }
 .input-year { width: 6em; }
 .input-detail { width: 8em; }
+.input-lineage { width: 12em; } /* 系統入力欄を拡張 */
 
 /* オートコンプリート */
 .autocomplete-wrapper { position: relative; display: inline-block;}

@@ -38,15 +38,15 @@ document.addEventListener('DOMContentLoaded', () => {
     initialize();
 
     function initialize() {
-        // 定義済みの関数を呼び出すため、エラーハンドリングしつつ順次実行
         try { initButtons(); } catch (e) { console.error('Buttons Init Error:', e); }
         try { initModal(); } catch (e) { console.error('Modal Init Error:', e); }
-        try { 
-            initDOM(); 
-            initGenerationSelector(); 
-        } catch (e) { console.error('DOM Init Error:', e); }
         
         try { 
+            // DOM生成
+            initDOM(); 
+            
+            // ★修正: DOM生成後に依存する機能を確実に初期化
+            initGenerationSelector(); 
             initUI(); 
             initPageLeaveWarning(); 
             initFormDirtyStateTracking();
@@ -74,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if(execSaveBtn) execSaveBtn.onclick = executeSaveDB;
     }
 
-    // --- DOM生成ロジック ---
+    // --- DOM生成 ---
     function initDOM() {
         createFormGroups();
         createPreviewTable();
@@ -104,21 +104,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const basicRow = document.createElement('div');
             basicRow.className = 'input-row autocomplete-wrapper';
             basicRow.innerHTML = `
-                <input type="text" id="${id}-name-ja" class="input-name-ja" placeholder="カナ馬名 (必須)">
-                <input type="text" id="${id}-name-en" class="input-name-en" placeholder="欧字馬名 (実在馬必須)">
+                <input type="text" id="${id}-name-ja" class="input-name-ja" placeholder="カナ馬名 (任意)">
+                <input type="text" id="${id}-name-en" class="input-name-en" placeholder="欧字馬名 (必須)">
                 <input type="number" id="${id}-birth-year" class="input-year" placeholder="生年">
             `;
             group.appendChild(basicRow);
 
             const details = document.createElement('details');
             details.className = 'details-input';
+            details.open = true;
             details.innerHTML = `
                 <summary>詳細情報...</summary>
                 <div class="input-row">
                     <input type="text" id="${id}-country" class="input-detail" placeholder="生産国">
                     <input type="text" id="${id}-color" class="input-detail" placeholder="毛色">
                     <input type="text" id="${id}-family-no" class="input-detail" placeholder="F-No.">
-                    <input type="text" id="${id}-lineage" class="input-detail" placeholder="系統">
+                    <input type="text" id="${id}-lineage" class="input-lineage" placeholder="系統 (例: Halo系)">
                 </div>
             `;
             group.appendChild(details);
@@ -189,7 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
         initFormPreviewSync();
         initResponsiveTabs();
         initAutocomplete();
-        initInputValidation();
+        initInputValidation(); // ★追加: バリデーション機能の初期化をここに集約
     }
     
     function initModal() {
@@ -218,6 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if(form) form.addEventListener('input', () => state.isDirty = true);
     }
 
+    // --- ★バリデーション・プレースホルダー制御 ---
     function initInputValidation() {
         ALL_IDS.forEach(id => {
             const jaInput = document.getElementById(`${id}-name-ja`);
@@ -225,19 +227,104 @@ document.addEventListener('DOMContentLoaded', () => {
             const fictCheck = document.getElementById(`${id}-is-fictional`);
             if(!jaInput || !enInput || !fictCheck) return;
 
+            // 入力時のリアルタイムバリデーション
+            jaInput.addEventListener('input', () => validateInput(jaInput, 'ja'));
+            enInput.addEventListener('input', () => validateInput(enInput, 'en'));
+
+            // 初期状態のプレースホルダー更新
+            updatePlaceholder(fictCheck, jaInput, enInput);
+
             fictCheck.addEventListener('change', () => {
-                if (fictCheck.checked) {
-                    enInput.placeholder = "欧字馬名 (任意)";
-                    jaInput.placeholder = "カナ馬名 (必須)";
-                } else {
-                    enInput.placeholder = "欧字馬名 (実在馬必須)";
-                    jaInput.placeholder = "カナ馬名 (任意)";
-                }
+                updatePlaceholder(fictCheck, jaInput, enInput);
+                jaInput.classList.remove('input-error');
+                enInput.classList.remove('input-error');
             });
         });
     }
 
-    // ★追加: 欠落していた関数
+    function updatePlaceholder(checkbox, jaInput, enInput) {
+        if (checkbox.checked) {
+            enInput.placeholder = "欧字馬名 (任意)";
+            jaInput.placeholder = "カナ馬名 (必須)";
+        } else {
+            enInput.placeholder = "欧字馬名 (必須)";
+            jaInput.placeholder = "カナ馬名 (任意)";
+        }
+    }
+
+    function validateInput(input, type) {
+        const val = input.value;
+        if (!val) {
+            input.classList.remove('input-error');
+            return;
+        }
+        let isValid = true;
+        if (type === 'ja') {
+            // 全角カタカナ、長音、中黒、全角スペース
+            isValid = /^[\u30A0-\u30FF\u30FB\u3000]+$/.test(val);
+        } else if (type === 'en') {
+            // 半角英数字、記号、半角スペース
+            isValid = /^[\x20-\x7E]+$/.test(val);
+        }
+        
+        if (isValid) input.classList.remove('input-error');
+        else input.classList.add('input-error');
+    }
+
+    // 保存前の必須チェック
+    function checkRequiredFields() {
+        let hasError = false;
+        let firstErrorId = null;
+
+        ALL_IDS.forEach(id => {
+            const jaInput = document.getElementById(`${id}-name-ja`);
+            const enInput = document.getElementById(`${id}-name-en`);
+            const yearInput = document.getElementById(`${id}-birth-year`);
+            const fictCheck = document.getElementById(`${id}-is-fictional`);
+            
+            // 入力がある馬だけチェック
+            const hasInput = jaInput.value.trim() || enInput.value.trim();
+            
+            if (id === 'target' || hasInput) {
+                const isFictional = fictCheck.checked;
+                
+                // 実在馬: 欧字名必須
+                if (!isFictional && !enInput.value.trim()) {
+                    enInput.classList.add('input-error');
+                    hasError = true;
+                    if(!firstErrorId) firstErrorId = enInput;
+                }
+                
+                // 架空馬: カナ名必須
+                if (isFictional && !jaInput.value.trim()) {
+                    jaInput.classList.add('input-error');
+                    hasError = true;
+                    if(!firstErrorId) firstErrorId = jaInput;
+                }
+
+                // 実在馬: 生年必須
+                if (!isFictional && !yearInput.value.trim()) {
+                    yearInput.classList.add('input-error');
+                    hasError = true;
+                    if(!firstErrorId) firstErrorId = yearInput;
+                }
+                
+                // 文字種エラーが残っている場合
+                if (jaInput.classList.contains('input-error') || enInput.classList.contains('input-error')) {
+                    hasError = true;
+                    if(!firstErrorId) firstErrorId = jaInput.classList.contains('input-error') ? jaInput : enInput;
+                }
+            }
+        });
+
+        if (hasError && firstErrorId) {
+            alert('入力内容にエラーがあります。赤枠の項目を確認してください。');
+            firstErrorId.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return false;
+        }
+        return true;
+    }
+
     function handleDownloadTemplate() {
         const header = 'uuid,name_ja,name_en,birth_year,is_fictional,country,color,family_no,lineage,sire_id,dam_id,sire_name,dam_name';
         const example = `${generateUUID()},サンデーサイレンス,Sunday Silence,1986,false,USA,青鹿毛,,Halo系,,,Halo,Wishing Well`;
@@ -245,8 +332,10 @@ document.addEventListener('DOMContentLoaded', () => {
         downloadFile(content, 'template_v0.6.csv', 'text/csv');
     }
 
-    // --- DB保存 (競合チェック & モーダル) ---
+    // --- DB保存 ---
     function handleSaveDBRequest() {
+        if (!checkRequiredFields()) return; // バリデーション
+
         const formData = getFormDataAsMap();
         const conflicts = [];
 
