@@ -159,6 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!tbody) return;
         tbody.innerHTML = '';
 
+        // (rows配列は変更なしのため省略可能だが、念のため記述)
         const rows = [
             [{id:'s',rs:16,c:1}, {id:'ss',rs:8,c:2}, {id:'sss',rs:4,c:3}, {id:'ssss',rs:2,c:4}, {id:'sssss',c:5}],
             [{id:'ssssd',c:5}],
@@ -205,7 +206,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (cell.rs) td.rowSpan = cell.rs;
                 td.dataset.col = cell.c;
-                td.innerHTML = `<span id="preview-${cell.id}-name">&nbsp;</span><small id="preview-${cell.id}-birth-year">&nbsp;</small>`;
+                
+                // ★変更: 新しいレイアウト構造
+                td.innerHTML = `
+                    <div class="pedigree-cell-content">
+                        <span class="horse-name" id="preview-${cell.id}-name">&nbsp;</span>
+                        <span class="horse-name-en" id="preview-${cell.id}-name-en"></span>
+                        <div class="horse-info-row">
+                            <span class="horse-year" id="preview-${cell.id}-year"></span>
+                            <span class="horse-color" id="preview-${cell.id}-color"></span>
+                        </div>
+                        <div class="horse-lineage" id="preview-${cell.id}-lineage"></div>
+                        <div class="horse-country" id="preview-${cell.id}-country"></div>
+                    </div>
+                `;
                 tr.appendChild(td);
             });
             tbody.appendChild(tr);
@@ -248,43 +262,76 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function initFormPreviewSync() {
         ALL_IDS.forEach(id => {
-            const inputs = [`${id}-name-ja`, `${id}-name-en`, `${id}-birth-year`];
+            // 監視対象: 名前、生年、架空フラグ、詳細項目
+            const inputs = [
+                `${id}-name-ja`, `${id}-name-en`, `${id}-birth-year`, `${id}-is-fictional`,
+                `${id}-country`, `${id}-color`, `${id}-family-no`, `${id}-lineage`
+            ];
             inputs.forEach(inId => {
                 const el = document.getElementById(inId);
-                if(el) el.addEventListener('input', () => updatePreview(id));
+                if(el) {
+                    // checkboxはchange, textはinput
+                    const eventType = el.type === 'checkbox' ? 'change' : 'input';
+                    el.addEventListener(eventType, () => updatePreview(id));
+                }
             });
+            // 初期表示
             updatePreview(id);
         });
     }
 
     function updatePreview(id) {
-        const jaInput = document.getElementById(`${id}-name-ja`);
-        const enInput = document.getElementById(`${id}-name-en`);
-        const yrInput = document.getElementById(`${id}-birth-year`);
-        if(!jaInput) return;
-
-        const ja = jaInput.value.trim();
-        const en = enInput.value.trim();
-        const year = yrInput.value.trim();
-        let dispName = ja || en || '&nbsp;';
+        const ja = document.getElementById(`${id}-name-ja`)?.value.trim();
+        const en = document.getElementById(`${id}-name-en`)?.value.trim();
+        const year = document.getElementById(`${id}-birth-year`)?.value.trim();
+        const isFict = document.getElementById(`${id}-is-fictional`)?.checked;
         
+        const country = document.getElementById(`${id}-country`)?.value.trim();
+        const color = document.getElementById(`${id}-color`)?.value.trim();
+        const lineage = document.getElementById(`${id}-lineage`)?.value.trim();
+        
+        // 名前決定 (カナ優先)
+        let dispName = ja || en || '&nbsp;';
+        if ((ja || en) && isFict) {
+            dispName = `【${dispName}】`;
+        }
+
         if (id === 'target') {
             const title = document.getElementById('preview-title');
-            const text = (ja || en) ? `${ja || en}${year ? ` (${year})` : ''} の血統` : '血統表プレビュー';
+            const rawName = ja || en;
+            const text = rawName ? `${rawName}${year ? ` (${year})` : ''} の血統` : '血統表プレビュー';
             title.textContent = text;
         } else {
             const pName = document.getElementById(`preview-${id}-name`);
-            const pYear = document.getElementById(`preview-${id}-birth-year`);
             if(!pName) return;
+            
             const col = parseInt(pName.closest('.pedigree-cell')?.dataset.col);
+            
             if (col === 5) {
-                let text = (ja || en) ? (ja || en) : '&nbsp;';
+                // 5代目は名前と生年(括弧書き)のみ
+                let text = dispName;
                 if ((ja || en) && year) text += ` (${year})`;
                 else if (year) text = `(${year})`;
                 pName.innerHTML = text;
             } else {
+                // 1〜4代目
                 pName.innerHTML = dispName;
-                pYear.innerHTML = year || '&nbsp;';
+                
+                // 欧字名 (カナがあり、かつ欧字もある場合のみ表示)
+                const pNameEn = document.getElementById(`preview-${id}-name-en`);
+                if (pNameEn) pNameEn.textContent = (ja && en) ? en : '';
+
+                // 生年・毛色
+                const pYear = document.getElementById(`preview-${id}-year`);
+                const pColor = document.getElementById(`preview-${id}-color`);
+                if (pYear) pYear.innerHTML = year || '&nbsp;'; // 空白確保のため&nbsp;
+                if (pColor) pColor.textContent = color || '';
+
+                // 系統・生産国
+                const pLineage = document.getElementById(`preview-${id}-lineage`);
+                const pCountry = document.getElementById(`preview-${id}-country`);
+                if (pLineage) pLineage.textContent = lineage || '';
+                if (pCountry) pCountry.textContent = country || '';
             }
         }
     }
@@ -903,21 +950,39 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function handleSaveImage() {
-        const titleEl = document.getElementById('preview-title');
+        const titleEl = document.getElementById('preview-title'); // これは span 要素
         const tableEl = document.querySelector('.pedigree-table');
+        
         const ja = document.getElementById('target-name-ja').value.trim();
         const en = document.getElementById('target-name-en').value.trim();
         const year = document.getElementById('target-birth-year').value.trim();
         const name = ja || en;
+        
         const selectedGen = document.querySelector('input[name="generation"]:checked').value;
         let fileName = `${selectedGen}代血統表.png`;
         if (name) fileName = `${name}${year ? `(${year})` : ''}_${fileName}`;
+
         const cloneContainer = document.createElement('div');
         cloneContainer.className = 'clone-container-for-image';
-        cloneContainer.appendChild(titleEl.cloneNode(true));
+        
+        // ★修正: h2タグを作成し、その中にspanを入れる
+        const h2 = document.createElement('h2');
+        const clonedSpan = titleEl.cloneNode(true);
+        
+        // JSでスタイルを強制適用 (CSSの読み込みラグ対策)
+        h2.style.fontSize = '24px';
+        h2.style.fontWeight = 'bold';
+        h2.style.margin = '0 0 15px 0';
+        h2.style.textAlign = 'left';
+        
+        h2.appendChild(clonedSpan);
+        cloneContainer.appendChild(h2);
+        
         cloneContainer.appendChild(tableEl.cloneNode(true));
+        
         cloneContainer.style.width = `${IMAGE_WIDTHS[selectedGen]}px`;
         document.body.appendChild(cloneContainer);
+        
         await new Promise(resolve => requestAnimationFrame(resolve));
         try {
             const canvas = await html2canvas(cloneContainer, { scale: 1 });
