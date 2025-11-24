@@ -1,8 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- アプリケーション設定 ---
     const IMAGE_WIDTHS = { 2: 800, 3: 1000, 4: 1200, 5: 1400 };
-    // ★ここに発行したGASのウェブアプリURLを貼り付けてください
-    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbxT1WVuSeaxXIkvwJ2xJ56RrJjIgqPerVvHExbbAm8DYlfuy6599_-fFsfi7iCUKQST/exec'; 
+    // ★GASのURL
+    const GAS_API_URL = ''; 
     
     // --- 状態管理 ---
     const state = {
@@ -40,13 +40,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- 初期化シーケンス ---
     initialize();
 
-    function initialize() {
+    async function initialize() {
         try {
             initButtons(); 
             initModal();
             initDOM(); 
-            initGenerationSelector(); // DOM生成後に実行
-            initUI();                 // DOM生成後に実行
+            initGenerationSelector(); 
+            initUI();
             initPageLeaveWarning(); 
             initFormDirtyStateTracking();
         } catch (e) {
@@ -54,23 +54,41 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (typeof GAS_API_URL !== 'undefined' && GAS_API_URL) {
-            fetchDB();
+            // 初期ロード開始
+            const loadingOverlay = document.getElementById('global-loading-overlay');
+            // ボタンを通信中に設定
+            updateLoadingState(true, '共通データベースから最新情報を取得しています。');
+            
+            await fetchDB(true); // true = 初回ロード
+
+            // ★修正: 読み込み完了後、ボタンとオーバーレイの状態をリセット
+            updateLoadingState(false);
+            
+            // ただし、startup-modalを表示したいので、オーバーレイだけは再度隠す処理が必要になるが、
+            // updateLoadingState(false) は overlay.classList.add('hidden') を含むため、
+            // ここで一度オーバーレイが消え、直後にstartup-modalが出る流れになる。
+            // 見た目をスムーズにするなら、startup-modalを表示してからoverlayを消すべきだが、
+            // updateLoadingState(false) で一括リセットするのが最も安全。
+            
+            document.getElementById('startup-modal-overlay').classList.remove('hidden');
         } else {
             console.warn('GAS_API_URL is not set.');
+            document.getElementById('global-loading-overlay').classList.add('hidden');
+            document.getElementById('startup-modal-overlay').classList.remove('hidden');
         }
     }
 
     // --- ボタン・モーダル初期化 ---
     function initButtons() {
         const loadBtn = document.getElementById('load-db');
-        const saveLocalBtn = document.getElementById('save-local'); // ★変更
+        const saveLocalBtn = document.getElementById('save-local');
         const saveBtn = document.getElementById('save-db');
         const imgBtn = document.getElementById('save-image');
         const cancelSaveBtn = document.getElementById('cancel-save-btn');
         const execSaveBtn = document.getElementById('execute-save-btn');
 
         if(loadBtn) loadBtn.onclick = handleLoadDB;
-        if(saveLocalBtn) saveLocalBtn.onclick = handleSaveLocal; // ★変更
+        if(saveLocalBtn) saveLocalBtn.onclick = handleSaveLocal;
         if(saveBtn) saveBtn.onclick = handleSaveDBRequest;
         if(imgBtn) imgBtn.onclick = handleSaveImage;
         
@@ -83,15 +101,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function initModal() {
         const modalOverlay = document.getElementById('startup-modal-overlay');
-        const startCloudBtn = document.getElementById('start-cloud-btn-modal'); // ★変更
-        const loadLocalLink = document.getElementById('load-local-link-modal'); // ★変更
+        const startCloudBtn = document.getElementById('start-cloud-btn-modal');
+        const loadLocalLink = document.getElementById('load-local-link-modal');
         const migrationModal = document.getElementById('migration-modal-overlay');
         const closeMigrationBtn = document.getElementById('close-migration-wizard');
         
-        // クラウド開始
         if(startCloudBtn) startCloudBtn.onclick = () => modalOverlay.classList.add('hidden');
         
-        // ローカル読み込み開始
         if(loadLocalLink) loadLocalLink.onclick = (e) => {
             e.preventDefault();
             modalOverlay.classList.add('hidden');
@@ -106,7 +122,6 @@ document.addEventListener('DOMContentLoaded', () => {
         createFormGroups();
         createPreviewTable();
     }
-
     function createFormGroups() {
         const container = document.getElementById('dynamic-form-container');
         if (!container) return;
@@ -114,11 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         ALL_IDS.forEach(id => {
             const gen = getGeneration(id);
-            const labelInfo = GENERATION_LABELS[id] || { 
-                label: id.toUpperCase(), 
-                tag: gen === 3 ? 'h4' : 'h5' 
-            };
-
+            const labelInfo = GENERATION_LABELS[id] || { label: id.toUpperCase(), tag: gen === 3 ? 'h4' : 'h5' };
             const group = document.createElement('div');
             group.className = 'horse-input-group';
             group.dataset.generation = gen;
@@ -159,7 +170,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!tbody) return;
         tbody.innerHTML = '';
 
-        // (rows配列は変更なしのため省略可能だが、念のため記述)
         const rows = [
             [{id:'s',rs:16,c:1}, {id:'ss',rs:8,c:2}, {id:'sss',rs:4,c:3}, {id:'ssss',rs:2,c:4}, {id:'sssss',c:5}],
             [{id:'ssssd',c:5}],
@@ -207,7 +217,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (cell.rs) td.rowSpan = cell.rs;
                 td.dataset.col = cell.c;
                 
-                // ★変更: 新しいレイアウト構造
                 td.innerHTML = `
                     <div class="pedigree-cell-content">
                         <span class="horse-name" id="preview-${cell.id}-name">&nbsp;</span>
@@ -227,6 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getGeneration(id) { if (id === 'target') return 0; return id.length; }
+
     function initUI() {
         initFormPreviewSync();
         initResponsiveTabs();
@@ -259,10 +269,9 @@ document.addEventListener('DOMContentLoaded', () => {
             else cell.classList.remove('hidden');
         });
     }
-
     function initFormPreviewSync() {
         ALL_IDS.forEach(id => {
-            // 監視対象: 名前、生年、架空フラグ、詳細項目
+            // 詳細項目も監視対象
             const inputs = [
                 `${id}-name-ja`, `${id}-name-en`, `${id}-birth-year`, `${id}-is-fictional`,
                 `${id}-country`, `${id}-color`, `${id}-family-no`, `${id}-lineage`
@@ -270,12 +279,10 @@ document.addEventListener('DOMContentLoaded', () => {
             inputs.forEach(inId => {
                 const el = document.getElementById(inId);
                 if(el) {
-                    // checkboxはchange, textはinput
                     const eventType = el.type === 'checkbox' ? 'change' : 'input';
                     el.addEventListener(eventType, () => updatePreview(id));
                 }
             });
-            // 初期表示
             updatePreview(id);
         });
     }
@@ -290,11 +297,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const color = document.getElementById(`${id}-color`)?.value.trim();
         const lineage = document.getElementById(`${id}-lineage`)?.value.trim();
         
-        // 名前決定 (カナ優先)
         let dispName = ja || en || '&nbsp;';
-        if ((ja || en) && isFict) {
-            dispName = `【${dispName}】`;
-        }
+        if ((ja || en) && isFict) dispName = `【${dispName}】`;
 
         if (id === 'target') {
             const title = document.getElementById('preview-title');
@@ -308,26 +312,20 @@ document.addEventListener('DOMContentLoaded', () => {
             const col = parseInt(pName.closest('.pedigree-cell')?.dataset.col);
             
             if (col === 5) {
-                // 5代目は名前と生年(括弧書き)のみ
                 let text = dispName;
                 if ((ja || en) && year) text += ` (${year})`;
                 else if (year) text = `(${year})`;
                 pName.innerHTML = text;
             } else {
-                // 1〜4代目
                 pName.innerHTML = dispName;
-                
-                // 欧字名 (カナがあり、かつ欧字もある場合のみ表示)
                 const pNameEn = document.getElementById(`preview-${id}-name-en`);
                 if (pNameEn) pNameEn.textContent = (ja && en) ? en : '';
 
-                // 生年・毛色
                 const pYear = document.getElementById(`preview-${id}-year`);
                 const pColor = document.getElementById(`preview-${id}-color`);
-                if (pYear) pYear.innerHTML = year || '&nbsp;'; // 空白確保のため&nbsp;
+                if (pYear) pYear.innerHTML = year || '&nbsp;';
                 if (pColor) pColor.textContent = color || '';
 
-                // 系統・生産国
                 const pLineage = document.getElementById(`preview-${id}-lineage`);
                 const pCountry = document.getElementById(`preview-${id}-country`);
                 if (pLineage) pLineage.textContent = lineage || '';
@@ -337,17 +335,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- GAS通信関数 ---
-    async function fetchDB() {
+    async function fetchDB(isInitial = false) {
         if(state.isLoading) return;
         state.isLoading = true;
-        updateLoadingState(true);
+        
+        // 初期ロード以外でもオーバーレイを表示
+        updateLoadingState(true, 'データを読み込んでいます...');
 
         try {
             const response = await fetch(GAS_API_URL);
             if (!response.ok) throw new Error('Network response was not ok');
             const data = await response.json();
             
-            // サーバーデータをマージ
             data.forEach(row => {
                 if(row.uuid) {
                     row.id = row.uuid;
@@ -358,17 +357,29 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log(`DB Loaded: ${state.db.size} records`);
         } catch (error) {
             console.error('Fetch Error:', error);
-            alert('データの読み込みに失敗しました。\n通信環境を確認してリロードしてください。');
+            if (isInitial) {
+                const msgEl = document.getElementById('loading-message');
+                if(msgEl) {
+                    msgEl.textContent = 'データの読み込みに失敗しました。リロードしてください。';
+                    msgEl.style.color = 'red';
+                }
+                return;
+            } else {
+                alert('データの読み込みに失敗しました。');
+            }
         } finally {
             state.isLoading = false;
-            updateLoadingState(false);
+            // 初期ロード時は呼び出し元(initialize)でオーバーレイを消す制御をしている場合があるが、
+            // ここで統一して消す方が安全。ただし初期ロード直後のモーダル表示との兼ね合いに注意。
+            // 今回の設計では initialize 内で手動で消しているので、isInitial=true の時はここでは消さない。
+            if (!isInitial) updateLoadingState(false);
         }
     }
 
     async function postDB(dataToSave) {
         if(state.isLoading) return;
         state.isLoading = true;
-        updateLoadingState(true);
+        updateLoadingState(true, 'サーバーに保存しています...'); // ★メッセージ付きで呼び出し
 
         try {
             const payload = Array.from(dataToSave.values()).map(h => {
@@ -386,7 +397,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (result.status === 'success') {
                 alert('保存が完了しました。');
                 state.isDirty = false;
-                await fetchDB();
+                await fetchDB(); // 保存後は最新データを再取得
             } else {
                 throw new Error(result.message || 'Unknown Error');
             }
@@ -400,23 +411,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function updateLoadingState(isLoading) {
+    function updateLoadingState(isLoading, message = '処理中...') {
         const saveBtn = document.getElementById('save-db');
+        const overlay = document.getElementById('global-loading-overlay');
+        const msgEl = document.getElementById('loading-message');
+
+        // ボタン制御
         if(saveBtn) {
             saveBtn.disabled = isLoading;
             saveBtn.textContent = isLoading ? '通信中...' : 'サーバーに保存';
         }
-    }
-    // ★追加: ローカルCSV保存
-    function handleSaveLocal() {
-        if (!confirm('現在のデータベースの内容をCSVファイルとしてダウンロードします。\nこの操作では、クラウド上の共有データベースには保存されません。\n\n続行しますか？')) {
-            return;
-        }
-        // 全データをCSV化してダウンロード
-        const csvString = convertDbToCSV(state.db);
-        downloadFile(csvString, 'pedigree_db_local.csv', 'text/csv');
-    }
 
+        // オーバーレイ制御
+        if (overlay && msgEl) {
+            if (isLoading) {
+                msgEl.textContent = message;
+                overlay.classList.remove('hidden');
+            } else {
+                overlay.classList.add('hidden');
+            }
+        }
+    }
     // --- DB保存ロジック ---
     async function handleSaveDBRequest() {
         const hasInput = ALL_IDS.some(id => {
@@ -431,16 +446,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const formData = getFormDataAsMap();
         const conflicts = [];
 
-        // 1. フォームデータと既存DBのマージ & 競合チェック
         for (const [tempId, formHorse] of formData.entries()) {
             let targetUUID = formHorse.id;
             let dbHorse = null;
 
-            // UUIDがない、またはUUIDはあるがサーバーに存在しない場合（ローカル独自IDなど）
-            // -> 名前と生年でサーバー上のデータを検索（名寄せ）
             if (!targetUUID || !state.db.has(targetUUID)) {
                 for (const [existingId, existingHorse] of state.db.entries()) {
-                    // 実在馬判定 (欧字名+生年)
                     if (!formHorse.is_fictional && !existingHorse.is_fictional) {
                         if (existingHorse.name_en && formHorse.name_en &&
                             existingHorse.name_en.toLowerCase().trim() === formHorse.name_en.toLowerCase().trim() &&
@@ -450,7 +461,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             break;
                         }
                     }
-                    // 架空馬判定 (カナ名+生年)
                     else if (existingHorse.name_ja === formHorse.name_ja && String(existingHorse.birth_year) === String(formHorse.birth_year)) {
                         targetUUID = existingId;
                         dbHorse = existingHorse;
@@ -462,7 +472,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (dbHorse) {
-                // 既存データあり -> 比較
                 const diffs = [];
                 const fields = ['name_ja', 'name_en', 'birth_year', 'country', 'color', 'family_no', 'lineage'];
                 
@@ -482,7 +491,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     formHorse.id = targetUUID; 
                     conflicts.push({ horse: formHorse, dbHorse, diffs });
                 } else {
-                    // 変更なし、または空欄埋め -> マージ
                     Object.assign(dbHorse, formHorse);
                     if (formHorse.id && formHorse.id !== targetUUID) {
                         state.db.delete(formHorse.id);
@@ -490,7 +498,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             } else {
-                // 完全新規
                 formData.set(tempId, formHorse);
             }
         }
@@ -510,7 +517,6 @@ document.addEventListener('DOMContentLoaded', () => {
         conflicts.forEach((conflict, index) => {
             const card = document.createElement('div');
             card.className = 'confirm-card';
-            
             let tableRows = '';
             const fieldNames = { 
                 name_ja: 'カナ馬名', name_en: '欧字馬名', birth_year: '生年', 
@@ -539,7 +545,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function executeSaveDB() {
         const listContainer = document.getElementById('save-confirm-list');
         const cards = listContainer.querySelectorAll('.confirm-card');
-        
         cards.forEach((card, index) => {
             const actionInput = card.querySelector(`input[name="action_${index}"]:checked`);
             if (actionInput && actionInput.value === 'new') {
@@ -556,53 +561,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(dbHorse) Object.assign(dbHorse, formHorse);
             }
         });
-
         saveDataDirectly(state.pendingSaveData);
         document.getElementById('save-confirm-modal-overlay').classList.add('hidden');
         state.pendingSaveData = null;
     }
 
     function saveDataDirectly(formData) {
-        // 1. 未発行IDの解決
         for (const horse of formData.values()) {
-            if (!horse.id) {
-                horse.id = generateUUID();
-            }
+            if (!horse.id) horse.id = generateUUID();
         }
-
-        // 2. 親子リンクの解決
         ALL_IDS.forEach(id => {
             const horse = formData.get(id);
             if (!horse) return;
-
             let sireIdPrefix, damIdPrefix;
             if (id === 'target') { sireIdPrefix = 's'; damIdPrefix = 'd'; }
             else { sireIdPrefix = id + 's'; damIdPrefix = id + 'd'; }
-
-            if (formData.has(sireIdPrefix)) {
-                horse.sire_id = formData.get(sireIdPrefix).id;
-            }
-            if (formData.has(damIdPrefix)) {
-                horse.dam_id = formData.get(damIdPrefix).id;
-            }
+            if (formData.has(sireIdPrefix)) horse.sire_id = formData.get(sireIdPrefix).id;
+            if (formData.has(damIdPrefix)) horse.dam_id = formData.get(damIdPrefix).id;
         });
-
-        // 3. 既存DBへのマージ
+        
         const newDb = new Map(state.db);
         for (const horse of formData.values()) {
-            if (newDb.has(horse.id)) {
-                Object.assign(newDb.get(horse.id), horse);
-            } else {
-                newDb.set(horse.id, horse);
-            }
+            if (newDb.has(horse.id)) Object.assign(newDb.get(horse.id), horse);
+            else newDb.set(horse.id, horse);
         }
-
-        // 4. 送信
-        if (newDb.size > 0) {
-            postDB(newDb);
-        } else {
-            alert('保存するデータがありません。');
-        }
+        if (newDb.size > 0) postDB(newDb);
+        else alert('保存するデータがありません。');
     }
     // --- データ取得・変換 ---
     function getFormDataAsMap() {
@@ -682,6 +666,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- CSV読み込み & マイグレーション ---
+    function handleSaveLocal() {
+        if (!confirm('現在のデータベースの内容をCSVファイルとしてダウンロードします。\nこの操作では、クラウド上の共有データベースには保存されません。\n\n続行しますか？')) return;
+        const csvString = convertDbToCSV(state.db);
+        downloadFile(csvString, 'pedigree_db_local.csv', 'text/csv');
+    }
+
     function handleLoadDB() {
         const input = document.createElement('input');
         input.type = 'file'; input.accept = '.csv,text/csv,text/plain';
@@ -697,7 +687,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function parseCSV(csvText) {
-        // state.db.clear(); // マージのため削除
         const lines = csvText.trim().split(/\r?\n/);
         const header = lines.shift().split(',').map(h => h.trim());
         const isOldFormat = !header.includes('uuid');
@@ -758,6 +747,7 @@ document.addEventListener('DOMContentLoaded', () => {
         alert(`${data.length}件のデータを読み込みました。\n現在の全データ数: ${state.db.size}件`);
         state.isDirty = false;
     }
+
     function generateUUID() {
         if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
         return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -775,102 +765,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function initFormDirtyStateTracking() {
         const form = document.querySelector('.form-container');
         if(form) form.addEventListener('input', () => state.isDirty = true);
-    }
-    // --- オートコンプリート機能 (欠落修正) ---
-    function initAutocomplete() {
-        ALL_IDS.forEach(id => {
-            ['name-ja', 'name-en'].forEach(suffix => {
-                const input = document.getElementById(`${id}-${suffix}`);
-                if (!input) return;
-                const wrapper = input.closest('.autocomplete-wrapper');
-                let suggestionsContainer = wrapper.querySelector('.autocomplete-suggestions');
-                if (!suggestionsContainer) {
-                    suggestionsContainer = document.createElement('div');
-                    suggestionsContainer.className = 'autocomplete-suggestions';
-                    wrapper.appendChild(suggestionsContainer);
-                }
-                input.addEventListener('input', () => showSuggestions(input, suggestionsContainer, id));
-                document.addEventListener('click', (e) => {
-                    if (!wrapper.contains(e.target)) suggestionsContainer.innerHTML = '';
-                });
-            });
-        });
-    }
-
-    function showSuggestions(input, container, idPrefix) {
-        const value = input.value.toLowerCase();
-        container.innerHTML = '';
-        if (value.length === 0) return;
-        const suggestions = [];
-        for (const horse of state.db.values()) {
-            const matchJa = horse.name_ja && horse.name_ja.includes(value);
-            const matchEn = horse.name_en && horse.name_en.toLowerCase().includes(value);
-            if (matchJa || matchEn) suggestions.push(horse);
-            if (suggestions.length >= 10) break;
-        }
-        suggestions.forEach(horse => {
-            const item = document.createElement('div');
-            item.className = 'autocomplete-suggestion';
-            let label = horse.name_ja || '';
-            if (horse.name_en) label += ` (${horse.name_en})`;
-            if (horse.birth_year) label += ` ${horse.birth_year}`;
-            item.textContent = label;
-            item.addEventListener('click', () => {
-                populateFormRecursively(horse.id, idPrefix);
-                container.innerHTML = '';
-            });
-            container.appendChild(item);
-        });
-    }
-
-    function populateFormRecursively(horseId, idPrefix) {
-        const horse = state.db.get(horseId);
-        if (!horse) return;
-
-        const ja = document.getElementById(`${idPrefix}-name-ja`);
-        const en = document.getElementById(`${idPrefix}-name-en`);
-        const yr = document.getElementById(`${idPrefix}-birth-year`);
-        const fict = document.getElementById(`${idPrefix}-is-fictional`);
-        
-        const group = document.querySelector(`.horse-input-group[data-horse-id="${idPrefix}"]`);
-        if (group) group.dataset.uuid = horseId;
-
-        if(ja) ja.value = horse.name_ja || '';
-        if(en) en.value = horse.name_en || '';
-        if(yr) yr.value = horse.birth_year || '';
-        if(fict) fict.checked = horse.is_fictional;
-        
-        const country = document.getElementById(`${idPrefix}-country`);
-        if(country) country.value = horse.country || '';
-        document.getElementById(`${idPrefix}-color`).value = horse.color || '';
-        document.getElementById(`${idPrefix}-family-no`).value = horse.family_no || '';
-        document.getElementById(`${idPrefix}-lineage`).value = horse.lineage || '';
-
-        if(ja) ja.dispatchEvent(new Event('input', { bubbles: true }));
-
-        let sirePrefix, damPrefix;
-        if (idPrefix === 'target') { sirePrefix = 's'; damPrefix = 'd'; }
-        else { sirePrefix = idPrefix + 's'; damPrefix = idPrefix + 'd'; }
-
-        if (sirePrefix.length > 5) return;
-
-        if (horse.sire_id) {
-            populateFormRecursively(horse.sire_id, sirePrefix);
-        } else if (horse.is_fictional && horse.sire_name) {
-            const sGroup = document.querySelector(`.horse-input-group[data-horse-id="${sirePrefix}"]`);
-            if(sGroup) delete sGroup.dataset.uuid;
-            const sJa = document.getElementById(`${sirePrefix}-name-ja`);
-            if(sJa) { sJa.value = horse.sire_name; sJa.dispatchEvent(new Event('input', { bubbles: true })); }
-        }
-        
-        if (horse.dam_id) {
-            populateFormRecursively(horse.dam_id, damPrefix);
-        } else if (horse.is_fictional && horse.dam_name) {
-            const dGroup = document.querySelector(`.horse-input-group[data-horse-id="${damPrefix}"]`);
-            if(dGroup) delete dGroup.dataset.uuid;
-            const dJa = document.getElementById(`${damPrefix}-name-ja`);
-            if(dJa) { dJa.value = horse.dam_name; dJa.dispatchEvent(new Event('input', { bubbles: true })); }
-        }
     }
     function initInputValidation() {
         ALL_IDS.forEach(id => {
@@ -948,16 +842,100 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
+    // --- オートコンプリート ---
+    function initAutocomplete() {
+        ALL_IDS.forEach(id => {
+            ['name-ja', 'name-en'].forEach(suffix => {
+                const input = document.getElementById(`${id}-${suffix}`);
+                if (!input) return;
+                const wrapper = input.closest('.autocomplete-wrapper');
+                let suggestionsContainer = wrapper.querySelector('.autocomplete-suggestions');
+                if (!suggestionsContainer) {
+                    suggestionsContainer = document.createElement('div');
+                    suggestionsContainer.className = 'autocomplete-suggestions';
+                    wrapper.appendChild(suggestionsContainer);
+                }
+                input.addEventListener('input', () => showSuggestions(input, suggestionsContainer, id));
+                document.addEventListener('click', (e) => {
+                    if (!wrapper.contains(e.target)) suggestionsContainer.innerHTML = '';
+                });
+            });
+        });
+    }
+    function showSuggestions(input, container, idPrefix) {
+        const value = input.value.toLowerCase();
+        container.innerHTML = '';
+        if (value.length === 0) return;
+        const suggestions = [];
+        for (const horse of state.db.values()) {
+            const matchJa = horse.name_ja && horse.name_ja.includes(value);
+            const matchEn = horse.name_en && horse.name_en.toLowerCase().includes(value);
+            if (matchJa || matchEn) suggestions.push(horse);
+            if (suggestions.length >= 10) break;
+        }
+        suggestions.forEach(horse => {
+            const item = document.createElement('div');
+            item.className = 'autocomplete-suggestion';
+            let label = horse.name_ja || '';
+            if (horse.name_en) label += ` (${horse.name_en})`;
+            if (horse.birth_year) label += ` ${horse.birth_year}`;
+            item.textContent = label;
+            item.addEventListener('click', () => {
+                populateFormRecursively(horse.id, idPrefix);
+                container.innerHTML = '';
+            });
+            container.appendChild(item);
+        });
+    }
+    function populateFormRecursively(horseId, idPrefix) {
+        const horse = state.db.get(horseId);
+        if (!horse) return;
+        const ja = document.getElementById(`${idPrefix}-name-ja`);
+        const en = document.getElementById(`${idPrefix}-name-en`);
+        const yr = document.getElementById(`${idPrefix}-birth-year`);
+        const fict = document.getElementById(`${idPrefix}-is-fictional`);
+        const group = document.querySelector(`.horse-input-group[data-horse-id="${idPrefix}"]`);
+        if (group) group.dataset.uuid = horseId;
+        if(ja) ja.value = horse.name_ja || '';
+        if(en) en.value = horse.name_en || '';
+        if(yr) yr.value = horse.birth_year || '';
+        if(fict) fict.checked = horse.is_fictional;
+        const country = document.getElementById(`${idPrefix}-country`);
+        if(country) country.value = horse.country || '';
+        document.getElementById(`${idPrefix}-color`).value = horse.color || '';
+        document.getElementById(`${idPrefix}-family-no`).value = horse.family_no || '';
+        document.getElementById(`${idPrefix}-lineage`).value = horse.lineage || '';
+        if(ja) ja.dispatchEvent(new Event('input', { bubbles: true }));
+        let sirePrefix, damPrefix;
+        if (idPrefix === 'target') { sirePrefix = 's'; damPrefix = 'd'; }
+        else { sirePrefix = idPrefix + 's'; damPrefix = idPrefix + 'd'; }
+        if (sirePrefix.length > 5) return;
+        if (horse.sire_id) {
+            populateFormRecursively(horse.sire_id, sirePrefix);
+        } else if (horse.is_fictional && horse.sire_name) {
+            const sGroup = document.querySelector(`.horse-input-group[data-horse-id="${sirePrefix}"]`);
+            if(sGroup) delete sGroup.dataset.uuid;
+            const sJa = document.getElementById(`${sirePrefix}-name-ja`);
+            if(sJa) { sJa.value = horse.sire_name; sJa.dispatchEvent(new Event('input', { bubbles: true })); }
+        }
+        if (horse.dam_id) {
+            populateFormRecursively(horse.dam_id, damPrefix);
+        } else if (horse.is_fictional && horse.dam_name) {
+            const dGroup = document.querySelector(`.horse-input-group[data-horse-id="${damPrefix}"]`);
+            if(dGroup) delete dGroup.dataset.uuid;
+            const dJa = document.getElementById(`${damPrefix}-name-ja`);
+            if(dJa) { dJa.value = horse.dam_name; dJa.dispatchEvent(new Event('input', { bubbles: true })); }
+        }
+    }
 
     async function handleSaveImage() {
-        const titleEl = document.getElementById('preview-title'); // これは span 要素
+        const titleEl = document.getElementById('preview-title'); // span
         const tableEl = document.querySelector('.pedigree-table');
         
         const ja = document.getElementById('target-name-ja').value.trim();
         const en = document.getElementById('target-name-en').value.trim();
         const year = document.getElementById('target-birth-year').value.trim();
         const name = ja || en;
-        
         const selectedGen = document.querySelector('input[name="generation"]:checked').value;
         let fileName = `${selectedGen}代血統表.png`;
         if (name) fileName = `${name}${year ? `(${year})` : ''}_${fileName}`;
@@ -965,21 +943,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const cloneContainer = document.createElement('div');
         cloneContainer.className = 'clone-container-for-image';
         
-        // ★修正: h2タグを作成し、その中にspanを入れる
         const h2 = document.createElement('h2');
         const clonedSpan = titleEl.cloneNode(true);
-        
-        // JSでスタイルを強制適用 (CSSの読み込みラグ対策)
         h2.style.fontSize = '24px';
         h2.style.fontWeight = 'bold';
         h2.style.margin = '0 0 15px 0';
         h2.style.textAlign = 'left';
-        
         h2.appendChild(clonedSpan);
         cloneContainer.appendChild(h2);
         
         cloneContainer.appendChild(tableEl.cloneNode(true));
-        
         cloneContainer.style.width = `${IMAGE_WIDTHS[selectedGen]}px`;
         document.body.appendChild(cloneContainer);
         
