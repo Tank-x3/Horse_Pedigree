@@ -2,7 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- アプリケーション設定 ---
     const IMAGE_WIDTHS = { 2: 800, 3: 1000, 4: 1200, 5: 1400 };
     // ★GASのURL
-    const GAS_API_URL = ''; 
+    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbxT1WVuSeaxXIkvwJ2xJ56RrJjIgqPerVvHExbbAm8DYlfuy6599_-fFsfi7iCUKQST/exec'; 
     
     // --- 状態管理 ---
     const state = {
