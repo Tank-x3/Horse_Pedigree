@@ -292,10 +292,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const text = rawName ? `${rawName}${year ? ` (${year})` : ''} の血統` : '血統表プレビュー';
             title.textContent = text;
         } else {
+            const cell = document.querySelector(`.pedigree-cell[data-horse-id="${id}"]`); // ※注意: HTML側でdata属性付与が必要だが、現状ないのでIDから逆算するか、updatePreview内ではID指定で要素を取る
+            // 既存コード: preview-${id}-name を使用
             const pName = document.getElementById(`preview-${id}-name`);
             if(!pName) return;
             
-            const col = parseInt(pName.closest('.pedigree-cell')?.dataset.col);
+            const cellEl = pName.closest('.pedigree-cell');
+            const col = parseInt(cellEl?.dataset.col);
             
             if (col === 5) {
                 let text = dispName;
@@ -318,6 +321,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (pCountry) pCountry.textContent = country || '';
             }
         }
+        
+        // ★追加: クロス判定の更新 (入力のたびに再計算)
+        // 遅延実行してパフォーマンスへの影響を抑える（debounce）のが理想だが、今回は直接呼ぶ
+        updateCrossList();
     }
 
     // --- GAS通信関数 ---
@@ -922,10 +929,191 @@ document.addEventListener('DOMContentLoaded', () => {
             if(dJa) { dJa.value = horse.dam_name; dJa.dispatchEvent(new Event('input', { bubbles: true })); }
         }
     }
+    // --- インブリード判定ロジック (v0.11.0) ---
+    // --- インブリード判定ロジック (v0.11.1 強化版) ---
+    function updateCrossList() {
+        const formData = getFormDataAsMap();
+        
+        // ★Step 0: メモリ内名寄せ (仮ID発行と統合)
+        // 保存前でも「名前+生年」が同じなら同一IDとみなすためのマップ
+        const uniqueMap = new Map(); // Key: "名前_生年", Value: UUID (or TempID)
+
+        // 1回目走査: IDの確定
+        ALL_IDS.forEach(id => {
+            const horse = formData.get(id);
+            if (!horse) return;
+            
+            const name = horse.name_ja || horse.name_en;
+            if (!name) return;
+            
+            // キー生成 (実在/架空問わず名前と年で突合)
+            const key = `${name}_${horse.birth_year || ''}`;
+            
+            if (!uniqueMap.has(key)) {
+                // 初出: UUIDがあればそれ、なければ仮IDを発行
+                const uuid = horse.id || `temp_${generateUUID()}`;
+                uniqueMap.set(key, uuid);
+            }
+            
+            // 統合されたIDをセット (元データは書き換えず、判定用プロパティに追加)
+            horse.resolvedId = uniqueMap.get(key);
+        });
+
+        // 2回目走査: 親IDの解決 (resolvedIdベースでリンク)
+        // ※formDataはフラットなので、ALL_IDSの階層構造を使って親を探す
+        ALL_IDS.forEach(id => {
+            const horse = formData.get(id);
+            if (!horse || !horse.resolvedId) return;
+
+            let sId, dId;
+            if (id === 'target') { sId = 's'; dId = 'd'; }
+            else { sId = id + 's'; dId = id + 'd'; }
+            
+            const sire = formData.get(sId);
+            const dam = formData.get(dId);
+            
+            horse.resolvedSireId = sire ? sire.resolvedId : null;
+            horse.resolvedDamId = dam ? dam.resolvedId : null;
+        });
+
+        // ★Step 1: 全祖先データの構築 (パス情報付き)
+        const ancestors = []; 
+        const traverse = (currentId, currentPath, gen) => {
+            if (gen > 5) return;
+            const horse = formData.get(currentId);
+            if (!horse || !horse.resolvedId) return;
+
+            if (gen > 0) {
+                ancestors.push({
+                    uuid: horse.resolvedId,
+                    name: horse.name_ja || horse.name_en,
+                    path: [...currentPath], 
+                    gen: gen,
+                    sireId: horse.resolvedSireId,
+                    damId: horse.resolvedDamId,
+                    htmlId: currentId
+                });
+            }
+
+            const nextPath = [...currentPath, horse.resolvedId];
+            let sKey, dKey;
+            if (currentId === 'target') { sKey='s'; dKey='d'; }
+            else { sKey=currentId+'s'; dKey=currentId+'d'; }
+            traverse(sKey, nextPath, gen + 1);
+            traverse(dKey, nextPath, gen + 1);
+        };
+        traverse('target', [], 0);
+
+        // ★Step 2: グループIDの付与 (全きょうだい判定)
+        ancestors.forEach(anc => {
+            if (anc.sireId && anc.damId) {
+                // 父IDと母IDが一致すれば全きょうだい
+                anc.groupId = `sib_${anc.sireId}_${anc.damId}`;
+            } else {
+                // 親不明の場合は個体IDのみ
+                anc.groupId = `self_${anc.uuid}`;
+            }
+        });
+
+        // ★Step 3: クロス判定 (若い世代順)
+        ancestors.sort((a, b) => a.gen - b.gen);
+        const validCrossGroups = new Set();
+        const crossResults = new Map();
+
+        const groups = new Map();
+        ancestors.forEach(anc => {
+            if (!groups.has(anc.groupId)) groups.set(anc.groupId, []);
+            groups.get(anc.groupId).push(anc);
+        });
+
+        groups.forEach((members, groupId) => {
+            // 2回以上登場、または「全きょうだいグループ」でメンバー名が異なる場合もクロス扱いにする？
+            // -> 基本は「登場回数」で判定。全きょうだいは血統表上で別名でも「同じ血」としてカウントされるべき。
+            if (members.length < 2) return; 
+
+            let validCount = 0;
+            const validMembers = [];
+
+            members.forEach(member => {
+                // パスチェック
+                let isMasked = false;
+                for (const pathUuid of member.path) {
+                    // パス上の馬の情報を探す
+                    const pathHorse = ancestors.find(a => a.uuid === pathUuid);
+                    if (pathHorse && validCrossGroups.has(pathHorse.groupId)) {
+                        isMasked = true;
+                        break;
+                    }
+                }
+
+                if (!isMasked) {
+                    validCount++;
+                    validMembers.push(member);
+                }
+            });
+
+            if (validCount > 0) {
+                validCrossGroups.add(groupId);
+                
+                // 名前リスト (重複除去)
+                const names = [...new Set(members.map(m => m.name))].join(', ');
+                
+                let totalPct = 0;
+                members.forEach(m => {
+                    totalPct += 100 / Math.pow(2, m.gen);
+                });
+
+                const gens = members.map(m => m.gen).sort((a, b) => a - b).join(' x ');
+
+                crossResults.set(groupId, {
+                    name: names,
+                    pct: totalPct,
+                    gens: gens,
+                    ids: members.map(m => m.htmlId)
+                });
+            }
+        });
+
+        renderCrossList(Array.from(crossResults.values()));
+    }
+
+    function renderCrossList(crosses) {
+        const container = document.getElementById('cross-list-container');
+        if(!container) return; // HTMLに追加が必要
+
+        // ハイライトリセット
+        document.querySelectorAll('.pedigree-cell .horse-name').forEach(el => {
+            el.classList.remove('cross-highlight-text');
+        });
+
+        if (crosses.length === 0) {
+            container.innerHTML = '';
+            container.style.display = 'none';
+            return;
+        }
+
+        container.style.display = 'block';
+        let html = '<span class="cross-list-title">5代内クロス:</span> ';
+        
+        // 血量順、世代順などでソートするとより良いが、今回は登場順
+        crosses.forEach(cross => {
+            const pctStr = parseFloat(cross.pct.toFixed(2)) + '%';
+            html += `<span class="cross-item"><span class="cross-item-name">${cross.name}</span> ${pctStr} (${cross.gens})</span> `;
+
+            // ハイライト適用
+            cross.ids.forEach(htmlId => {
+                const span = document.getElementById(`preview-${htmlId}-name`);
+                if (span) span.classList.add('cross-highlight-text');
+            });
+        });
+
+        container.innerHTML = html;
+    }
 
     async function handleSaveImage() {
         const titleEl = document.getElementById('preview-title'); // span
-        const tableEl = document.querySelector('.pedigree-table');
+        const tableWrapper = document.querySelector('.pedigree-table-wrapper'); // テーブルのラッパー
+        const crossList = document.getElementById('cross-list-container'); // クロスリスト
         
         const ja = document.getElementById('target-name-ja').value.trim();
         const en = document.getElementById('target-name-en').value.trim();
@@ -938,6 +1126,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const cloneContainer = document.createElement('div');
         cloneContainer.className = 'clone-container-for-image';
         
+        // タイトル生成
         const h2 = document.createElement('h2');
         const clonedSpan = titleEl.cloneNode(true);
         h2.style.fontSize = '24px';
@@ -947,7 +1136,19 @@ document.addEventListener('DOMContentLoaded', () => {
         h2.appendChild(clonedSpan);
         cloneContainer.appendChild(h2);
         
-        cloneContainer.appendChild(tableEl.cloneNode(true));
+        // テーブル (WrapperごとではなくTableのみクローン)
+        const table = document.querySelector('.pedigree-table');
+        cloneContainer.appendChild(table.cloneNode(true));
+
+        // ★追加: クロスリスト
+        if (crossList && crossList.style.display !== 'none') {
+            const clonedCross = crossList.cloneNode(true);
+            // スタイル調整 (幅など)
+            clonedCross.style.marginTop = '10px';
+            clonedCross.style.borderTop = 'none'; // 画像内では線なしで見せる等の調整可
+            cloneContainer.appendChild(clonedCross);
+        }
+        
         cloneContainer.style.width = `${IMAGE_WIDTHS[selectedGen]}px`;
         document.body.appendChild(cloneContainer);
         

@@ -253,6 +253,35 @@ body {
 .pedigree-cell[data-col="5"] .horse-lineage,
 .pedigree-cell[data-col="5"] .horse-country { display: none; }
 
+/* ★追加: インブリード強調 */
+.cross-highlight-text {
+    color: red;
+    font-weight: bold;
+}
+
+/* ★追加: クロスリスト */
+.cross-list-container {
+    margin-top: 15px;
+    padding: 10px;
+    background-color: #fff;
+    border-top: 1px solid #ddd;
+    font-size: 0.9em;
+    line-height: 1.5;
+}
+.cross-list-title {
+    font-weight: bold;
+    margin-right: 10px;
+}
+.cross-item {
+    margin-right: 15px;
+    display: inline-block;
+}
+.cross-item-name {
+    color: red;
+    font-weight: bold;
+    margin-right: 3px;
+}
+
 /* レスポンシブ対応 */
 @media (max-width: 900px) {
     .main-header { font-size: 0.8em; }
