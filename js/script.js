@@ -42,35 +42,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function initialize() {
         try {
-            initButtons(); 
-            initModal();
-            initDOM(); 
-            initGenerationSelector(); 
-            initUI();
-            initPageLeaveWarning(); 
-            initFormDirtyStateTracking();
-        } catch (e) {
-            console.error('Initialization Error:', e);
-        }
+            initButtons(); initModal(); initDOM(); 
+            initGenerationSelector(); initUI();
+            initPageLeaveWarning(); initFormDirtyStateTracking();
+        } catch (e) { console.error('Initialization Error:', e); }
 
         if (typeof GAS_API_URL !== 'undefined' && GAS_API_URL) {
-            // 初期ロード開始
-            const loadingOverlay = document.getElementById('global-loading-overlay');
-            // ボタンを通信中に設定
-            updateLoadingState(true, '共通データベースから最新情報を取得しています。');
-            
-            await fetchDB(true); // true = 初回ロード
-
-            // ★修正: 読み込み完了後、ボタンとオーバーレイの状態をリセット
-            updateLoadingState(false);
-            
-            // ただし、startup-modalを表示したいので、オーバーレイだけは再度隠す処理が必要になるが、
-            // updateLoadingState(false) は overlay.classList.add('hidden') を含むため、
-            // ここで一度オーバーレイが消え、直後にstartup-modalが出る流れになる。
-            // 見た目をスムーズにするなら、startup-modalを表示してからoverlayを消すべきだが、
-            // updateLoadingState(false) で一括リセットするのが最も安全。
-            
-            document.getElementById('startup-modal-overlay').classList.remove('hidden');
+            // ★修正: メッセージ指定
+            updateLoadingState(true, '読み込み中...', '共通データベースから最新情報を取得しています。');
+            try {
+                await fetchDB(true);
+                updateLoadingState(false);
+                document.getElementById('startup-modal-overlay').classList.remove('hidden');
+            } catch (e) {
+                // fetchDB内でエラー表示済み
+            }
         } else {
             console.warn('GAS_API_URL is not set.');
             document.getElementById('global-loading-overlay').classList.add('hidden');
@@ -335,12 +321,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- GAS通信関数 ---
+    // ★修正: ローディング表示の責務を呼び出し元に移譲
     async function fetchDB(isInitial = false) {
-        if(state.isLoading) return;
-        state.isLoading = true;
-        
-        // 初期ロード以外でもオーバーレイを表示
-        updateLoadingState(true, 'データを読み込んでいます...');
+        // 呼び出し元で updateLoadingState(true, ...) すること
 
         try {
             const response = await fetch(GAS_API_URL);
@@ -363,23 +346,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     msgEl.textContent = 'データの読み込みに失敗しました。リロードしてください。';
                     msgEl.style.color = 'red';
                 }
-                return;
+                throw error; // 初期化失敗として上に投げる
             } else {
                 alert('データの読み込みに失敗しました。');
+                throw error;
             }
-        } finally {
-            state.isLoading = false;
-            // 初期ロード時は呼び出し元(initialize)でオーバーレイを消す制御をしている場合があるが、
-            // ここで統一して消す方が安全。ただし初期ロード直後のモーダル表示との兼ね合いに注意。
-            // 今回の設計では initialize 内で手動で消しているので、isInitial=true の時はここでは消さない。
-            if (!isInitial) updateLoadingState(false);
         }
+        // finallyでの updateLoadingState(false) も削除し、呼び出し元で行う
     }
 
     async function postDB(dataToSave) {
         if(state.isLoading) return;
         state.isLoading = true;
-        updateLoadingState(true, 'サーバーに保存しています...'); // ★メッセージ付きで呼び出し
+        // ★修正: メッセージを「保存中」に
+        updateLoadingState(true, '保存中...', 'サーバーにデータを送信しています...');
 
         try {
             const payload = Array.from(dataToSave.values()).map(h => {
@@ -397,7 +377,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (result.status === 'success') {
                 alert('保存が完了しました。');
                 state.isDirty = false;
-                await fetchDB(); // 保存後は最新データを再取得
+                // 保存後の再取得時はメッセージを変えたいが、一瞬なので省略可、
+                // あるいはここで updateLoadingState(true, '同期中...', '最新情報を取得しています...'); としても良い
+                await fetchDB(); 
             } else {
                 throw new Error(result.message || 'Unknown Error');
             }
@@ -411,9 +393,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function updateLoadingState(isLoading, message = '処理中...') {
+    function updateLoadingState(isLoading, title = '処理中...', message = '') {
         const saveBtn = document.getElementById('save-db');
         const overlay = document.getElementById('global-loading-overlay');
+        const titleEl = document.getElementById('loading-title');
         const msgEl = document.getElementById('loading-message');
 
         // ボタン制御
@@ -423,9 +406,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // オーバーレイ制御
-        if (overlay && msgEl) {
+        if (overlay && titleEl && msgEl) {
             if (isLoading) {
-                msgEl.textContent = message;
+                titleEl.textContent = title;
+                msgEl.textContent = message || title;
                 overlay.classList.remove('hidden');
             } else {
                 overlay.classList.add('hidden');
@@ -441,71 +425,82 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         if (hasInput && !checkRequiredFields()) return;
 
-        await fetchDB();
+        // ★追加: 保存前の同期フェーズであることを表示
+        if(state.isLoading) return;
+        state.isLoading = true;
+        updateLoadingState(true, '同期中...', 'データの競合を確認しています...');
+
+        try {
+            await fetchDB();
+        } catch (e) {
+            state.isLoading = false;
+            updateLoadingState(false);
+            return; // 読み込み失敗なら保存中断
+        }
+        
+        // ここで一度ローディングを解除しない（シームレスに移行するか、あるいは解除するか）
+        // 競合チェック処理は一瞬なので、解除せずに進めるのが自然
+        // ただし、モーダルを出す場合は解除する必要がある
 
         const formData = getFormDataAsMap();
         const conflicts = [];
 
+        // ... (中略: 競合チェックロジックは変更なし) ...
         for (const [tempId, formHorse] of formData.entries()) {
+            // ... (省略: 変更なし) ...
+            // v0.8.4のロジックそのまま
             let targetUUID = formHorse.id;
             let dbHorse = null;
-
             if (!targetUUID || !state.db.has(targetUUID)) {
                 for (const [existingId, existingHorse] of state.db.entries()) {
                     if (!formHorse.is_fictional && !existingHorse.is_fictional) {
                         if (existingHorse.name_en && formHorse.name_en &&
                             existingHorse.name_en.toLowerCase().trim() === formHorse.name_en.toLowerCase().trim() &&
                             String(existingHorse.birth_year) === String(formHorse.birth_year)) {
-                            targetUUID = existingId;
-                            dbHorse = existingHorse;
-                            break;
+                            targetUUID = existingId; dbHorse = existingHorse; break;
                         }
-                    }
-                    else if (existingHorse.name_ja === formHorse.name_ja && String(existingHorse.birth_year) === String(formHorse.birth_year)) {
-                        targetUUID = existingId;
-                        dbHorse = existingHorse;
-                        break;
+                    } else if (existingHorse.name_ja === formHorse.name_ja && String(existingHorse.birth_year) === String(formHorse.birth_year)) {
+                        targetUUID = existingId; dbHorse = existingHorse; break;
                     }
                 }
-            } else {
-                dbHorse = state.db.get(targetUUID);
-            }
+            } else { dbHorse = state.db.get(targetUUID); }
 
             if (dbHorse) {
                 const diffs = [];
                 const fields = ['name_ja', 'name_en', 'birth_year', 'country', 'color', 'family_no', 'lineage'];
-                
                 fields.forEach(field => {
                     const dbVal = String(dbHorse[field] || '').trim();
                     const formVal = String(formHorse[field] || '').trim();
-                    if (dbVal !== '' && dbVal !== formVal) {
-                        diffs.push({ field, old: dbVal, new: formVal });
-                    }
+                    if (dbVal !== '' && dbVal !== formVal) diffs.push({ field, old: dbVal, new: formVal });
                 });
-
                 if (dbHorse.is_fictional !== formHorse.is_fictional) {
                     if (formHorse.is_fictional) dbHorse.is_fictional = true; 
                 }
-
                 if (diffs.length > 0) {
                     formHorse.id = targetUUID; 
                     conflicts.push({ horse: formHorse, dbHorse, diffs });
                 } else {
                     Object.assign(dbHorse, formHorse);
                     if (formHorse.id && formHorse.id !== targetUUID) {
-                        state.db.delete(formHorse.id);
-                        state.db.set(targetUUID, dbHorse);
+                        state.db.delete(formHorse.id); state.db.set(targetUUID, dbHorse);
                     }
                 }
-            } else {
-                formData.set(tempId, formHorse);
-            }
+            } else { formData.set(tempId, formHorse); }
         }
+        // ... (中略終了) ...
 
         if (conflicts.length > 0) {
+            // ★修正: モーダルを出す前にローディングを消す
+            state.isLoading = false;
+            updateLoadingState(false);
+            
             state.pendingSaveData = formData;
             showSaveConfirmModal(conflicts);
         } else {
+            // 競合なし -> そのまま送信へ (ローディング表示は継続したいが、postDBが再度呼ぶのでOK)
+            // ただし state.isLoading = true のまま postDB を呼ぶと冒頭のガードで弾かれるため、
+            // 一旦 false に戻す必要がある。
+            state.isLoading = false;
             saveDataDirectly(formData);
         }
     }

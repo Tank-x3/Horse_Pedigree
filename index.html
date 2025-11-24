@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>5代血統表 作成ツール v0.10.2</title>
+    <title>5代血統表 作成ツール v0.10.3</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
@@ -13,7 +13,7 @@
     <!-- ★追加: グローバルローディングオーバーレイ -->
     <div class="modal-overlay" id="global-loading-overlay" style="z-index: 2000;">
         <div class="modal" style="width: 300px;">
-            <h3>読み込み中...</h3>
+            <h3 id="loading-title">読み込み中...</h3>
             <p id="loading-message">共通データベースから最新情報を取得しています。</p>
         </div>
     </div>
@@ -109,6 +109,6 @@
     </main>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="js/script.js?v=0.10.2"></script>
+    <script src="js/script.js?v=0.10.3"></script>
 </body>
 </html>
