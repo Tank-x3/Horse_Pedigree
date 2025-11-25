@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>5代血統表 作成ツール v0.11.2</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css?v=0.11.2">
+</head>
+<body>
+    <!-- ★追加: グローバルローディングオーバーレイ -->
+    <div class="modal-overlay" id="global-loading-overlay" style="z-index: 2000;">
+        <div class="modal" style="width: 300px;">
+            <h3 id="loading-title">読み込み中...</h3>
+            <p id="loading-message">共通データベースから最新情報を取得しています。</p>
+        </div>
+    </div>
+
+    <!-- 起動時モーダル (初期状態は非表示 class="hidden" を追加) -->
+    <div class="modal-overlay hidden" id="startup-modal-overlay">
+        <div class="modal">
+            <h2>血統表作成ツールへようこそ</h2>
+            <p>このツールは、クラウド上の共有データベースを使用して、<br>架空馬の血統表を作成・保存できます。</p>
+            <div class="modal-buttons">
+                <button id="start-cloud-btn-modal">共有データベースを使用して開始</button>
+            </div>
+            <div style="margin-top: 15px; font-size: 0.9em;">
+                <a href="#" id="load-local-link-modal">手元のCSVファイルを読み込んで開始</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 移行ウィザードモーダル -->
+    <div class="modal-overlay hidden" id="migration-modal-overlay">
+        <div class="modal migration-wizard">
+            <h3>データベース形式の更新について</h3>
+            <p>機能強化に伴い、データベース形式が新しくなりました。<br>読み込んだデータは自動変換されていますが、保存前に以下の確認をお願いします。</p>
+            <div class="migration-info-box">
+                <h4>⚠️ 重要な変更点</h4>
+                <ul>
+                    <li><strong>実在馬は「欧字馬名」が必須になります</strong><br><small>データの重複を防ぐため、実在馬はアルファベット名（例: Sunday Silence）の入力が必要です。</small></li>
+                    <li><strong>「架空馬」チェックボックスの追加</strong><br><small>チェックを入れると、欧字名や生年が未入力でも登録できるようになります。</small></li>
+                </ul>
+                <h4>➕ 追加された項目（すべて任意）</h4>
+                <p><small>以下の詳細情報を記録できるようになりました。</small></p>
+                <ul class="inline-list"><li>生産国</li><li>毛色</li><li>ファミリーNo.</li><li>系統名</li></ul>
+            </div>
+            <div class="modal-buttons">
+                <button id="close-migration-wizard">確認しました</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 保存確認モーダル -->
+    <div class="modal-overlay hidden" id="save-confirm-modal-overlay">
+        <div class="modal save-confirm-modal">
+            <h3>登録内容の確認</h3>
+            <p>以下のデータについて、既存の情報と異なる入力がされています。処理を選択してください。</p>
+            <div id="save-confirm-list" class="save-confirm-list"></div>
+            <div class="modal-buttons">
+                <button id="cancel-save-btn">キャンセル</button>
+                <button id="execute-save-btn">保存を実行</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ヘッダー (操作ボタンエリア) -->
+    <header class="main-header">
+        <div class="header-group">
+            <button id="load-db">DB読込</button>
+            <button id="save-local">ローカルに保存</button>
+            <button id="save-db">サーバーに保存</button>
+        </div>
+        <div class="header-group">
+            <button id="save-image">血統表を画像として保存</button>
+        </div>
+    </header>
+    
+    <!-- スマホ用タブ切り替え -->
+    <div class="tab-container">
+        <button class="tab-button active" data-tab="form">入力フォーム</button>
+        <button class="tab-button" data-tab="preview">血統表プレビュー</button>
+    </div>
+
+    <!-- メインコンテンツ -->
+    <main class="main-container">
+        <section class="form-container tab-content active" id="form-tab">
+            <h2>入力フォーム</h2>
+            <div class="generation-selector">
+                <span>表示世代数:</span>
+                <label><input type="radio" name="generation" value="2" checked> 2代</label>
+                <label><input type="radio" name="generation" value="3"> 3代</label>
+                <label><input type="radio" name="generation" value="4"> 4代</label>
+                <label><input type="radio" name="generation" value="5"> 5代</label>
+            </div>
+            <div id="dynamic-form-container"></div>
+        </section>
+
+        <section class="preview-container tab-content" id="preview-tab">
+            <h2><span id="preview-title">血統表プレビュー</span></h2>
+            <div class="pedigree-table-wrapper">
+                <table class="pedigree-table">
+                    <tbody id="preview-table-body"></tbody>
+                </table>
+            </div>
+            <!-- ★追加: クロスリスト表示エリア -->
+            <div id="cross-list-container" class="cross-list-container">
+                <!-- JSで動的に生成 -->
+            </div>
+        </section>
+    </main>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="js/script.js?v=0.11.5"></script>
+</body>
+</html>
