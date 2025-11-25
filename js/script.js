@@ -569,26 +569,62 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function saveDataDirectly(formData) {
+        // ★修正: フォームデータ内での名寄せ (同一馬へのUUID共有)
+        const nameMap = new Map(); // Key: "名前_生年", Value: UUID
+
+        // 1. UUIDの割り当て (名寄せしながら)
         for (const horse of formData.values()) {
-            if (!horse.id) horse.id = generateUUID();
+            const name = horse.name_ja || horse.name_en;
+            if (!name) continue;
+            const key = `${name}_${horse.birth_year || ''}`;
+
+            // 既にこの名前でUUIDが決まっていればそれを使う
+            if (nameMap.has(key)) {
+                horse.id = nameMap.get(key);
+            } 
+            // まだなければ、既存IDがあればそれ、なければ新規発行
+            else {
+                if (!horse.id) horse.id = generateUUID();
+                nameMap.set(key, horse.id);
+            }
         }
+
+        // 2. 親子リンクの解決
+        // UUIDが統合されたので、リンク先も正しいUUIDになる
         ALL_IDS.forEach(id => {
             const horse = formData.get(id);
             if (!horse) return;
+
             let sireIdPrefix, damIdPrefix;
             if (id === 'target') { sireIdPrefix = 's'; damIdPrefix = 'd'; }
             else { sireIdPrefix = id + 's'; damIdPrefix = id + 'd'; }
-            if (formData.has(sireIdPrefix)) horse.sire_id = formData.get(sireIdPrefix).id;
-            if (formData.has(damIdPrefix)) horse.dam_id = formData.get(damIdPrefix).id;
+
+            if (formData.has(sireIdPrefix)) {
+                horse.sire_id = formData.get(sireIdPrefix).id;
+            }
+            if (formData.has(damIdPrefix)) {
+                horse.dam_id = formData.get(damIdPrefix).id;
+            }
         });
-        
+
+        // 3. 既存DBへのマージ
         const newDb = new Map(state.db);
         for (const horse of formData.values()) {
-            if (newDb.has(horse.id)) Object.assign(newDb.get(horse.id), horse);
-            else newDb.set(horse.id, horse);
+            // 統合された結果、同じUUIDのデータが複数回setされることになるが、
+            // 内容は同じ（はず）なので問題ない。
+            if (newDb.has(horse.id)) {
+                Object.assign(newDb.get(horse.id), horse);
+            } else {
+                newDb.set(horse.id, horse);
+            }
         }
-        if (newDb.size > 0) postDB(newDb);
-        else alert('保存するデータがありません。');
+
+        // 4. 送信
+        if (newDb.size > 0) {
+            postDB(newDb);
+        } else {
+            alert('保存するデータがありません。');
+        }
     }
     // --- データ取得・変換 ---
     function getFormDataAsMap() {
