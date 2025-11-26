@@ -706,8 +706,78 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- CSV読み込み & マイグレーション ---
     function handleSaveLocal() {
         if (!confirm('現在のデータベースの内容をCSVファイルとしてダウンロードします。\nこの操作では、クラウド上の共有データベースには保存されません。\n\n続行しますか？')) return;
+
+        // ★修正: 保存前にフォームの内容をDBに取り込む処理を追加
+        const formData = getFormDataAsMap();
+        
+        // 1. 名寄せ用マップ作成 (既存DBの情報を優先)
+        const nameMap = new Map();
+        
+        // 既存DBのUUIDをマップに登録
+        for (const horse of state.db.values()) {
+            const name = horse.name_ja || horse.name_en;
+            if (name) {
+                const key = `${name}_${horse.birth_year || ''}`;
+                nameMap.set(key, horse.id);
+            }
+        }
+
+        // 2. フォームデータのUUID解決
+        for (const horse of formData.values()) {
+            const name = horse.name_ja || horse.name_en;
+            if (!name) continue;
+            const key = `${name}_${horse.birth_year || ''}`;
+
+            if (nameMap.has(key)) {
+                // 既存またはフォーム内で先に登場した同名馬のUUIDを使用
+                horse.id = nameMap.get(key);
+            } else {
+                // 完全新規ならUUID発行
+                if (!horse.id) horse.id = generateUUID();
+                nameMap.set(key, horse.id);
+            }
+        }
+
+        // 3. 親子リンクの解決 (UUIDベース)
+        ALL_IDS.forEach(id => {
+            const horse = formData.get(id);
+            if (!horse) return;
+
+            let sId, dId;
+            if (id === 'target') { sId = 's'; dId = 'd'; }
+            else { sId = id + 's'; dId = id + 'd'; }
+            
+            // フォーム内に親がいる場合はそのUUIDを使用
+            if (formData.has(sId)) horse.sire_id = formData.get(sId).id;
+            if (formData.has(dId)) horse.dam_id = formData.get(dId).id;
+        });
+
+        // 4. state.db へのマージ
+        for (const horse of formData.values()) {
+            if (state.db.has(horse.id)) {
+                // 既存データがある場合は上書き更新
+                Object.assign(state.db.get(horse.id), horse);
+            } else {
+                // 新規データなら追加
+                state.db.set(horse.id, horse);
+            }
+        }
+        
+        // 5. DOM上のUUID属性も更新 (次回の保存のために連携しておく)
+        ALL_IDS.forEach(id => {
+            const horse = formData.get(id);
+            if (horse && horse.id) {
+                const group = document.querySelector(`.horse-input-group[data-horse-id="${id}"]`);
+                if (group) group.dataset.uuid = horse.id;
+            }
+        });
+
+        // 6. CSV出力
         const csvString = convertDbToCSV(state.db);
         downloadFile(csvString, 'pedigree_db_local.csv', 'text/csv');
+        
+        state.isDirty = false;
+        alert('CSVファイルを保存しました。\n現在入力中のデータもリストに追加されました。');
     }
 
     function handleLoadDB() {
@@ -965,60 +1035,44 @@ document.addEventListener('DOMContentLoaded', () => {
             if(dJa) { dJa.value = horse.dam_name; dJa.dispatchEvent(new Event('input', { bubbles: true })); }
         }
     }
-    // --- インブリード判定ロジック (v0.11.0) ---
-    // --- インブリード判定ロジック (v0.11.1 強化版) ---
+    // --- インブリード判定ロジック (v0.11.9: 完全包含クロスの自動消去ロジック強化) ---
     function updateCrossList() {
         const formData = getFormDataAsMap();
         
-        // ★Step 0: メモリ内名寄せ (仮ID発行と統合)
-        // 保存前でも「名前+生年」が同じなら同一IDとみなすためのマップ
-        const uniqueMap = new Map(); // Key: "名前_生年", Value: UUID (or TempID)
-
-        // 1回目走査: IDの確定
+        // ★Step 0: メモリ内名寄せ
+        const uniqueMap = new Map();
         ALL_IDS.forEach(id => {
             const horse = formData.get(id);
             if (!horse) return;
-            
             const name = horse.name_ja || horse.name_en;
             if (!name) return;
-            
-            // キー生成 (実在/架空問わず名前と年で突合)
             const key = `${name}_${horse.birth_year || ''}`;
-            
             if (!uniqueMap.has(key)) {
-                // 初出: UUIDがあればそれ、なければ仮IDを発行
                 const uuid = horse.id || `temp_${generateUUID()}`;
                 uniqueMap.set(key, uuid);
             }
-            
-            // 統合されたIDをセット (元データは書き換えず、判定用プロパティに追加)
             horse.resolvedId = uniqueMap.get(key);
         });
 
-        // 2回目走査: 親IDの解決 (resolvedIdベースでリンク)
-        // ※formDataはフラットなので、ALL_IDSの階層構造を使って親を探す
+        // 親ID解決
         ALL_IDS.forEach(id => {
             const horse = formData.get(id);
             if (!horse || !horse.resolvedId) return;
-
             let sId, dId;
             if (id === 'target') { sId = 's'; dId = 'd'; }
             else { sId = id + 's'; dId = id + 'd'; }
-            
             const sire = formData.get(sId);
             const dam = formData.get(dId);
-            
             horse.resolvedSireId = sire ? sire.resolvedId : null;
             horse.resolvedDamId = dam ? dam.resolvedId : null;
         });
 
-        // ★Step 1: 全祖先データの構築 (パス情報付き)
+        // ★Step 1: 全祖先データの構築
         const ancestors = []; 
         const traverse = (currentId, currentPath, gen) => {
             if (gen > 5) return;
             const horse = formData.get(currentId);
             if (!horse || !horse.resolvedId) return;
-
             if (gen > 0) {
                 ancestors.push({
                     uuid: horse.resolvedId,
@@ -1030,7 +1084,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     htmlId: currentId
                 });
             }
-
             const nextPath = [...currentPath, horse.resolvedId];
             let sKey, dKey;
             if (currentId === 'target') { sKey='s'; dKey='d'; }
@@ -1040,68 +1093,143 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         traverse('target', [], 0);
 
-        // ★Step 2: グループIDの付与 (全きょうだい判定)
+        // ★Step 2: グループIDの付与 (Union-Find)
+        const uf = new Map();
+        const find = (id) => {
+            if (!uf.has(id)) uf.set(id, id);
+            if (uf.get(id) === id) return id;
+            const root = find(uf.get(id));
+            uf.set(id, root);
+            return root;
+        };
+        const union = (id1, id2) => {
+            const root1 = find(id1);
+            const root2 = find(id2);
+            if (root1 !== root2) uf.set(root2, root1);
+        };
+
+        const siblingsMap = new Map(); 
         ancestors.forEach(anc => {
+            find(anc.uuid);
             if (anc.sireId && anc.damId) {
-                // 父IDと母IDが一致すれば全きょうだい
-                anc.groupId = `sib_${anc.sireId}_${anc.damId}`;
-            } else {
-                // 親不明の場合は個体IDのみ
-                anc.groupId = `self_${anc.uuid}`;
+                const pairKey = `${anc.sireId}_${anc.damId}`;
+                if (!siblingsMap.has(pairKey)) siblingsMap.set(pairKey, new Set());
+                siblingsMap.get(pairKey).add(anc.uuid);
             }
         });
+        siblingsMap.forEach((uuidSet) => {
+            const uuids = Array.from(uuidSet);
+            if (uuids.length > 1) {
+                const first = uuids[0];
+                for (let i = 1; i < uuids.length; i++) {
+                    union(first, uuids[i]);
+                }
+            }
+        });
+        ancestors.forEach(anc => {
+            anc.groupId = find(anc.uuid);
+        });
 
-        // ★Step 3: クロス判定 (若い世代順)
+        // ★Step 3: クロス判定 (一次判定)
         ancestors.sort((a, b) => a.gen - b.gen);
-        const validCrossGroups = new Set();
-        const crossResults = new Map();
-
+        const tempValidCrossGroups = new Set();
         const groups = new Map();
         ancestors.forEach(anc => {
             if (!groups.has(anc.groupId)) groups.set(anc.groupId, []);
             groups.get(anc.groupId).push(anc);
         });
 
+        // マスク処理用の一時セット (Step 3内でのみ有効な簡易マスク)
+        // ※ここでの判定は「クロスとして成立しうるか」の最低ラインを決める
         groups.forEach((members, groupId) => {
-            // 2回以上登場、または「全きょうだいグループ」でメンバー名が異なる場合もクロス扱いにする？
-            // -> 基本は「登場回数」で判定。全きょうだいは血統表上で別名でも「同じ血」としてカウントされるべき。
             if (members.length < 2) return; 
 
-            let validCount = 0;
-            const validMembers = [];
+            const viaCrossIDs = new Set();
+            let unmaskedCount = 0;
+            const uniqueUUIDs = new Set(members.map(m => m.uuid));
+            const isSameHorseGroup = (uniqueUUIDs.size === 1);
 
             members.forEach(member => {
-                // パスチェック
-                let isMasked = false;
-                for (const pathUuid of member.path) {
-                    // パス上の馬の情報を探す
-                    const pathHorse = ancestors.find(a => a.uuid === pathUuid);
-                    if (pathHorse && validCrossGroups.has(pathHorse.groupId)) {
-                        isMasked = true;
+                let foundDominantCrossId = null;
+                // パス走査: 既に「有効」と判定されたクロスを経由しているか
+                for (let i = member.path.length - 1; i >= 0; i--) {
+                    const pathUuid = member.path[i];
+                    const pathGroupId = find(pathUuid);
+                    if (tempValidCrossGroups.has(pathGroupId)) {
+                        foundDominantCrossId = pathGroupId;
                         break;
                     }
                 }
-
-                if (!isMasked) {
-                    validCount++;
-                    validMembers.push(member);
+                if (foundDominantCrossId) {
+                    viaCrossIDs.add(foundDominantCrossId);
+                } else {
+                    unmaskedCount++;
                 }
             });
 
-            if (validCount > 0) {
-                validCrossGroups.add(groupId);
+            // 条件: 独立ライン1本以上 OR (同一馬かつ複数クロス経由)
+            let isValidCross = false;
+            if (unmaskedCount >= 1) isValidCross = true;
+            else if (isSameHorseGroup && viaCrossIDs.size >= 2) isValidCross = true;
+
+            if (isValidCross) tempValidCrossGroups.add(groupId);
+        });
+
+        // ★Step 4: 親子包含チェックによる冗長クロスの削除 (修正版)
+        const finalValidCrossGroups = new Set(tempValidCrossGroups);
+
+        tempValidCrossGroups.forEach(groupIdA => {
+            const membersA = groups.get(groupIdA);
+            
+            // 判定: 「このクロスのすべての登場箇所において、その子が『同一の血統グループ』に属しているか？」
+            // もしそうなら、この親クロスの血量はすべてその子グループを通じて流れているため、
+            // 子グループが表示されるか否かに関わらず、親は冗長情報として削除する。
+            
+            let isRedundant = true;
+            let commonChildGroupId = null;
+            let firstLoop = true;
+
+            for (const memberA of membersA) {
+                // path配列の末尾が「その馬の子」のUUID
+                if (memberA.path.length === 0) {
+                    // ターゲット自身の場合（Gen 0）、子はいないので判定不能（通常クロス判定対象外）
+                    isRedundant = false;
+                    break;
+                }
                 
-                // 名前リスト (重複除去)
+                const childUuid = memberA.path[memberA.path.length - 1];
+                const childGroupId = find(childUuid);
+
+                if (firstLoop) {
+                    commonChildGroupId = childGroupId;
+                    firstLoop = false;
+                } else {
+                    if (commonChildGroupId !== childGroupId) {
+                        // 子のグループが不一致 = 異なる系統に分岐している
+                        // -> この親は分岐点となる共通祖先なので、消してはいけない
+                        isRedundant = false;
+                        break;
+                    }
+                }
+            }
+
+            if (isRedundant) {
+                finalValidCrossGroups.delete(groupIdA);
+            }
+        });
+
+        // ★Step 5: レンダリング
+        const crossResults = [];
+        groups.forEach((members, groupId) => {
+            if (finalValidCrossGroups.has(groupId)) {
                 const names = [...new Set(members.map(m => m.name))].join(', ');
-                
                 let totalPct = 0;
                 members.forEach(m => {
                     totalPct += 100 / Math.pow(2, m.gen);
                 });
-
                 const gens = members.map(m => m.gen).sort((a, b) => a - b).join(' x ');
-
-                crossResults.set(groupId, {
+                
+                crossResults.push({
                     name: names,
                     pct: totalPct,
                     gens: gens,
@@ -1110,7 +1238,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        renderCrossList(Array.from(crossResults.values()));
+        renderCrossList(crossResults);
     }
 
     function renderCrossList(crosses) {
