@@ -512,6 +512,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // ★修正: 競合解決オプションの追加
     function showSaveConfirmModal(conflicts) {
         const listContainer = document.getElementById('save-confirm-list');
         listContainer.innerHTML = '';
@@ -534,8 +535,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 <h4>${conflict.dbHorse.name_ja || conflict.dbHorse.name_en} <small>(ID: ...${conflict.dbHorse.id.slice(-4)})</small></h4>
                 <table class="diff-table"><thead><tr><th>項目</th><th>変更前</th><th>変更後</th></tr></thead><tbody>${tableRows}</tbody></table>
                 <div class="confirm-options">
-                    <label><input type="radio" name="action_${index}" value="update" checked> 情報を更新する</label>
-                    <label><input type="radio" name="action_${index}" value="new"> 新しい馬として登録する</label>
+                    <label><input type="radio" name="action_${index}" value="update" checked> 情報を更新する <small>(入力内容で上書き)</small></label>
+                    <label><input type="radio" name="action_${index}" value="skip"> DBの情報を維持する <small>(この馬の変更を破棄)</small></label>
+                    <label><input type="radio" name="action_${index}" value="new"> 新しい馬として登録する <small>(別IDを発行)</small></label>
                 </div>
             `;
             card.dataset.tempId = tempKey;
@@ -544,25 +546,35 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('save-confirm-modal-overlay').classList.remove('hidden');
     }
 
+    // ★修正: スキップ処理の実装
     function executeSaveDB() {
         const listContainer = document.getElementById('save-confirm-list');
         const cards = listContainer.querySelectorAll('.confirm-card');
         cards.forEach((card, index) => {
             const actionInput = card.querySelector(`input[name="action_${index}"]:checked`);
-            if (actionInput && actionInput.value === 'new') {
-                const tempId = card.dataset.tempId;
-                const formHorse = state.pendingSaveData.get(tempId);
-                if (formHorse) {
-                    formHorse.id = null; 
-                    state.pendingSaveData.set(tempId, formHorse);
+            const tempId = card.dataset.tempId;
+
+            if (actionInput) {
+                if (actionInput.value === 'new') {
+                    // 新規登録: IDを消して新規発行させる
+                    const formHorse = state.pendingSaveData.get(tempId);
+                    if (formHorse) {
+                        formHorse.id = null; 
+                        state.pendingSaveData.set(tempId, formHorse);
+                    }
+                } else if (actionInput.value === 'skip') {
+                    // ★追加: DB維持（スキップ）: 保存対象リストから削除する
+                    // これにより、saveDataDirectlyでのマージ対象外となり、DBの値が維持される
+                    state.pendingSaveData.delete(tempId);
+                } else {
+                    // 更新 (update): DBのオブジェクトをフォームの内容で更新
+                    const formHorse = state.pendingSaveData.get(tempId);
+                    const dbHorse = state.db.get(formHorse.id);
+                    if(dbHorse) Object.assign(dbHorse, formHorse);
                 }
-            } else {
-                const tempId = card.dataset.tempId;
-                const formHorse = state.pendingSaveData.get(tempId);
-                const dbHorse = state.db.get(formHorse.id);
-                if(dbHorse) Object.assign(dbHorse, formHorse);
             }
         });
+        
         saveDataDirectly(state.pendingSaveData);
         document.getElementById('save-confirm-modal-overlay').classList.add('hidden');
         state.pendingSaveData = null;
@@ -897,12 +909,16 @@ document.addEventListener('DOMContentLoaded', () => {
             enInput.placeholder = "欧字馬名 (必須)"; jaInput.placeholder = "カナ馬名 (任意)";
         }
     }
+    // ★修正: 馬名入力制限の緩和
     function validateInput(input, type) {
         const val = input.value;
         if (!val) { input.classList.remove('input-error'); return; }
         let isValid = true;
-        if (type === 'ja') isValid = /^[\u30A0-\u30FF\u30FB\u3000]+$/.test(val);
-        else if (type === 'en') isValid = /^[\x20-\x7E]+$/.test(val);
+
+        // 日本語名(ja): 制限を解除 (漢字、ローマ数字、記号などを許容)
+        // 欧字名(en): 引き続き半角英数記号のみとする (必要に応じてここも緩和可能)
+        if (type === 'en') isValid = /^[\x20-\x7E]+$/.test(val);
+        
         if (isValid) input.classList.remove('input-error');
         else input.classList.add('input-error');
     }
