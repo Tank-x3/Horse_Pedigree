@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
         pendingSaveData: null,
         isLoading: false
     };
-    // ローカル短縮形 (既存コードとの互換性のため)
+    // ローカル短縮形
     const state = window.App.State;
 
     // --- 初期化シーケンス ---
@@ -19,7 +19,6 @@ document.addEventListener('DOMContentLoaded', () => {
     async function initialize() {
         try {
             initButtons(); initModal(); 
-            // DOM生成などはUIモジュールへ委譲
             App.UI.initDOM(); 
             App.UI.initGenerationSelector(); 
             App.UI.initUI();
@@ -28,22 +27,25 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) { console.error('Initialization Error:', e); }
 
         if (typeof GAS_API_URL !== 'undefined' && GAS_API_URL) {
-            App.UI.updateLoadingState(true, '読み込み中...', '共通データベースから最新情報を取得しています。');
+            // ★変更: 起動時のオーバーレイ表示のみ
+            App.UI.setGlobalLoading(true, '読み込み中...', '共通データベースから最新情報を取得しています。');
             try {
                 await fetchDB(true);
-                App.UI.updateLoadingState(false);
-                document.getElementById('startup-modal-overlay').classList.remove('hidden');
+                App.UI.setGlobalLoading(false);
+                // ★追加: ようこそモーダル廃止 -> トースト通知
+                App.UI.showToast(`クラウドDBに接続しました（${state.db.size}件）`);
             } catch (e) {
                 // fetchDB内でエラー表示済み
             }
         } else {
             console.warn('GAS_API_URL is not set.');
             document.getElementById('global-loading-overlay').classList.add('hidden');
-            document.getElementById('startup-modal-overlay').classList.remove('hidden');
+            // ローカルモード時は特に通知なし、またはトースト表示
+            App.UI.showToast('オフラインモードで起動しました');
         }
     }
 
-    // --- ボタン・モーダル初期化 (イベント配線) ---
+    // --- ボタン・モーダル初期化 ---
     function initButtons() {
         const loadBtn = document.getElementById('load-db');
         const saveLocalBtn = document.getElementById('save-local');
@@ -65,20 +67,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function initModal() {
-        const modalOverlay = document.getElementById('startup-modal-overlay');
-        const startCloudBtn = document.getElementById('start-cloud-btn-modal');
-        const loadLocalLink = document.getElementById('load-local-link-modal');
+        // ★変更: 起動時モーダルの初期化処理を削除
         const migrationModal = document.getElementById('migration-modal-overlay');
         const closeMigrationBtn = document.getElementById('close-migration-wizard');
-        
-        if(startCloudBtn) startCloudBtn.onclick = () => modalOverlay.classList.add('hidden');
-        
-        if(loadLocalLink) loadLocalLink.onclick = (e) => {
-            e.preventDefault();
-            modalOverlay.classList.add('hidden');
-            handleLoadDB();
-        };
-        
         if(closeMigrationBtn) closeMigrationBtn.onclick = () => migrationModal.classList.add('hidden');
     }
 
@@ -109,21 +100,35 @@ document.addEventListener('DOMContentLoaded', () => {
     async function postDB(dataToSave) {
         if(state.isLoading) return;
         state.isLoading = true;
-        App.UI.updateLoadingState(true, '保存中...', 'サーバーにデータを送信しています...');
+        
+        // ★変更: ボタンとオーバーレイを個別に制御
+        App.UI.setSaveButtonLoading(true, '通信中...');
+        App.UI.setGlobalLoading(true, '保存中...', 'サーバーにデータを送信しています...');
 
         try {
             const horsesArray = Array.from(dataToSave.values());
             await App.API.saveHorses(horsesArray);
             
-            alert('保存が完了しました。');
+            // ★重要変更: 送信成功後、即座にオーバーレイを消す
+            App.UI.setGlobalLoading(false);
+            
+            // ボタンはまだ「同期中」にしておく
+            App.UI.setSaveButtonLoading(true, '同期中...');
+            
+            // トーストで完了通知
+            App.UI.showToast('保存が完了しました');
             state.isDirty = false;
+            
+            // バックグラウンドで再取得
             await fetchDB(); 
         } catch (error) {
             console.error('Post Error:', error);
+            App.UI.setGlobalLoading(false); // エラー時もオーバーレイは消す
             alert(`保存に失敗しました。\n${error.message}`);
         } finally {
             state.isLoading = false;
-            App.UI.updateLoadingState(false);
+            // 最後にボタンを復帰
+            App.UI.setSaveButtonLoading(false, 'サーバーに保存');
         }
     }
 
@@ -137,13 +142,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if(state.isLoading) return;
         state.isLoading = true;
-        App.UI.updateLoadingState(true, '同期中...', 'データの競合を確認しています...');
+        
+        // 同期チェック中はオーバーレイを出す
+        App.UI.setSaveButtonLoading(true, '通信中...');
+        App.UI.setGlobalLoading(true, '同期中...', 'データの競合を確認しています...');
 
         try {
             await fetchDB();
         } catch (e) {
             state.isLoading = false;
-            App.UI.updateLoadingState(false);
+            App.UI.setGlobalLoading(false);
+            App.UI.setSaveButtonLoading(false, 'サーバーに保存');
             return;
         }
         
@@ -192,12 +201,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (conflicts.length > 0) {
             state.isLoading = false;
-            App.UI.updateLoadingState(false);
+            App.UI.setGlobalLoading(false);
+            // 競合時はボタンを戻す
+            App.UI.setSaveButtonLoading(false, 'サーバーに保存');
             
             state.pendingSaveData = formData;
             App.UI.showSaveConfirmModal(conflicts, formData);
         } else {
-            state.isLoading = false;
+            // 競合なし -> そのまま保存処理へ（isLoading=trueのまま）
+            // postDB内で再度ボタン状態などは設定される
+            state.isLoading = false; // postDBのガードを通過させるため一旦false
             saveDataDirectly(formData);
         }
     }

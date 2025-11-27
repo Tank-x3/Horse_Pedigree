@@ -127,50 +127,36 @@ body {
 }
 .clone-container-for-image .pedigree-table { font-size: 13px; }
 
-/* タイトルのスタイル強制 (v0.9.7 修正版) */
-/* 直下のh2のみを対象にするため、子セレクタ(>)を使用 */
 .clone-container-for-image > h2 {
-    font-size: 24px !important; /* 強制適用 */
+    font-size: 24px !important;
     margin: 0 0 15px 0;
     font-weight: bold;
     text-align: left;
     line-height: 1.4;
 }
-
-/* タイトル内のspanに対するスタイル */
 .clone-container-for-image > h2 > span {
     font-weight: bold !important;
     font-size: inherit;
 }
 
-/* ※注意: これ以降の .clone-container-for-image .pedigree-table 内の span には影響しないようにする */
-
-/* 血統表プレビュー (詳細表示対応 v0.9.3) */
+/* 血統表プレビュー */
 .pedigree-table-wrapper { overflow-x: auto; }
 .pedigree-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 550px; }
 .pedigree-cell {
     border: 1px solid var(--border-color); 
-    padding: 6px 2px; /* 上下余白を増やして5代目の高さを確保 */
+    padding: 6px 2px;
     vertical-align: middle; text-align: center;
     width: 13em; box-sizing: border-box;
 }
 
-/* セル内レイアウト */
 .pedigree-cell-content {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     line-height: 1.3;
     width: 100%;
 }
 
-/* 各要素のスタイル (v0.9.2 調整版) */
-.horse-name { 
-    display: block; font-weight: normal; 
-    margin-bottom: 2px;
-    line-height: 1.2;
-}
-.horse-name-en { 
-    display: block; color: #555; margin-bottom: 3px; 
-}
+.horse-name { display: block; font-weight: normal; margin-bottom: 2px; line-height: 1.2; }
+.horse-name-en { display: block; color: #555; margin-bottom: 3px; }
 .horse-info-row {
     display: flex; flex-wrap: wrap; justify-content: center; gap: 6px;
     color: #333; margin-bottom: 2px;
@@ -183,64 +169,43 @@ body {
 }
 .horse-country { color: #666; }
 
-/* 世代ごとのフォントサイズ調整 */
-/* 1代前 (親): 大きくゆったりと */
 .pedigree-cell[data-col="1"] .horse-name { font-size: 1.5em; margin-bottom: 5px; }
 .pedigree-cell[data-col="1"] .horse-name-en { font-size: 1.0em; margin-bottom: 5px; }
 .pedigree-cell[data-col="1"] .horse-info-row { font-size: 1.0em; gap: 10px; }
 .pedigree-cell[data-col="1"] .horse-lineage,
 .pedigree-cell[data-col="1"] .horse-country { font-size: 0.95em; }
 
-/* 2代前 (祖父母): 少し大きく */
 .pedigree-cell[data-col="2"] .horse-name { font-size: 1.3em; margin-bottom: 4px; }
 .pedigree-cell[data-col="2"] .horse-name-en { font-size: 0.9em; margin-bottom: 4px; }
 .pedigree-cell[data-col="2"] .horse-info-row { font-size: 0.95em; gap: 8px; }
 .pedigree-cell[data-col="2"] .horse-lineage,
 .pedigree-cell[data-col="2"] .horse-country { font-size: 0.9em; }
 
-/* 3代前 (曾祖父母): 馬名のみ少し強調 */
 .pedigree-cell[data-col="3"] .horse-name { font-size: 1.1em; }
 .pedigree-cell[data-col="3"] .horse-name-en { font-size: 0.8em; }
 .pedigree-cell[data-col="3"] .horse-info-row,
 .pedigree-cell[data-col="3"] .horse-lineage,
 .pedigree-cell[data-col="3"] .horse-country { font-size: 0.85em; }
 
-/* 4代前: 標準 (v0.9.5 修正版) */
-.pedigree-cell[data-col="4"] .horse-name { 
-    font-size: 0.95em; 
-    margin-bottom: 2px;
-}
-/* ★修正: 4代目の生年(info-row)のサイズを小さくする */
-.pedigree-cell[data-col="4"] .horse-info-row {
-    font-size: 0.85em; /* 3代目(0.85em)と同等か、必要に応じて0.8emに調整 */
-}
+.pedigree-cell[data-col="4"] .horse-name { font-size: 0.95em; margin-bottom: 2px; }
+.pedigree-cell[data-col="4"] .horse-info-row { font-size: 0.85em; }
 
-/* 5代前: 小さめ */
 .pedigree-cell[data-col="5"] .horse-name { font-size: 0.9em; }
 
-/* 背景色 */
 .sire-cell { background-color: var(--sire-bg-color); }
 .dam-cell { background-color: var(--dam-bg-color); }
 
-/* 1〜3代目の詳細情報エリアの高さ確保 (ガタつき防止) */
 .pedigree-cell[data-col="1"] .horse-info-row,
 .pedigree-cell[data-col="2"] .horse-info-row,
 .pedigree-cell[data-col="3"] .horse-info-row {
-    min-height: 1.4em; /* 常に1行分の高さを確保 */
+    min-height: 1.4em;
 }
-/* 系統・国などの行も確保したい場合は以下を追加 */
-/* .pedigree-cell[data-col="1"] .horse-lineage { min-height: 1.2em; display: inline-block; } */
-/* ただし、情報がない場合に空の枠が出るのを防ぐため、今回は info-row (生年・毛色) のみ確保とする */
 
-
-/* 4代目表示 (馬名と生年のみ) */
-/* ★修正: 生年(.horse-year)は表示し、他の詳細のみ隠す */
 .pedigree-cell[data-col="4"] .horse-name-en,
 .pedigree-cell[data-col="4"] .horse-color,
 .pedigree-cell[data-col="4"] .horse-lineage,
 .pedigree-cell[data-col="4"] .horse-country { display: none; }
 
-/* 5代目表示 (1行表示) */
 .pedigree-cell[data-col="5"] .horse-name {
     display: block;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
@@ -253,36 +218,44 @@ body {
 .pedigree-cell[data-col="5"] .horse-lineage,
 .pedigree-cell[data-col="5"] .horse-country { display: none; }
 
-/* ★追加: インブリード強調 */
-.cross-highlight-text {
-    color: red;
-    font-weight: bold;
-}
+.cross-highlight-text { color: red; font-weight: bold; }
 
-/* ★追加: クロスリスト */
 .cross-list-container {
-    margin-top: 15px;
-    padding: 10px;
-    background-color: #fff;
-    border-top: 1px solid #ddd;
-    font-size: 0.9em;
-    line-height: 1.5;
+    margin-top: 15px; padding: 10px; background-color: #fff;
+    border-top: 1px solid #ddd; font-size: 0.9em; line-height: 1.5;
 }
-.cross-list-title {
-    font-weight: bold;
-    margin-right: 10px;
+.cross-list-title { font-weight: bold; margin-right: 10px; }
+.cross-item { margin-right: 15px; display: inline-block; }
+.cross-item-name { color: red; font-weight: bold; margin-right: 3px; }
+
+/* ★追加: トースト通知スタイル */
+#toast-container {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 3000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none; /* クリックを透過 */
 }
-.cross-item {
-    margin-right: 15px;
-    display: inline-block;
+.toast-message {
+    background-color: rgba(50, 50, 50, 0.9);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 4px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    font-size: 0.95em;
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
+    pointer-events: auto; /* メッセージ自体は操作可能に */
 }
-.cross-item-name {
-    color: red;
-    font-weight: bold;
-    margin-right: 3px;
+.toast-message.show {
+    opacity: 1;
 }
 
-/* レスポンシブ対応 */
+/* レスポンシブ */
 @media (max-width: 900px) {
     .main-header { font-size: 0.8em; }
     .tab-container { display: flex; background-color: #f4f4f4; }
@@ -296,74 +269,34 @@ body {
     .clone-container-for-image .pedigree-table { font-size: 13px; }
 }
 
-/* --- Step 1 追加スタイル: 操作性向上 & シンプルモード (バランス調整版) --- */
+.pedigree-cell { cursor: pointer; transition: background-color 0.2s; }
+.pedigree-cell:hover { background-color: rgba(0, 0, 0, 0.05); }
 
-/* 血統表セルのクリック誘導 */
-.pedigree-cell {
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
-.pedigree-cell:hover {
-    background-color: rgba(0, 0, 0, 0.05);
-}
-
-/* シンプルモード: 詳細情報の選択的非表示 */
-/* 1〜4代目の「生年」は残し、「毛色」「系統」「国」を消す */
 .pedigree-table.simple-mode .horse-color,
 .pedigree-table.simple-mode .horse-lineage,
 .pedigree-table.simple-mode .horse-country,
-.pedigree-table.simple-mode .preview-year-5th /* 5代目の生年を消す */
-{
-    display: none !important;
-}
+.pedigree-table.simple-mode .preview-year-5th { display: none !important; }
 
-/* シンプルモード時のレイアウト調整 */
-.pedigree-table.simple-mode .pedigree-cell {
-    padding: 2px;
-}
-.pedigree-table.simple-mode .pedigree-cell-content {
-    justify-content: center;
-    min-height: 0;
-}
+.pedigree-table.simple-mode .pedigree-cell { padding: 2px; }
+.pedigree-table.simple-mode .pedigree-cell-content { justify-content: center; min-height: 0; }
+.pedigree-table.simple-mode .horse-name { font-weight: bold; margin-bottom: 2px; }
+.pedigree-table.simple-mode .horse-name-en { color: #666; margin-bottom: 0; line-height: 1.1; }
+.pedigree-table.simple-mode .horse-year { color: #444; font-size: 0.9em; }
 
-/* シンプルモード時のフォントサイズ調整 */
-.pedigree-table.simple-mode .horse-name {
-    font-weight: bold;
-    margin-bottom: 2px;
-}
-/* 英語名は控えめに */
-.pedigree-table.simple-mode .horse-name-en {
-    color: #666;
-    margin-bottom: 0;
-    line-height: 1.1;
-}
-/* 生年(1~4代)も控えめに */
-.pedigree-table.simple-mode .horse-year {
-    color: #444;
-    font-size: 0.9em;
-}
-
-/* 1代前 (親) */
 .pedigree-table.simple-mode .pedigree-cell[data-col="1"] .horse-name { font-size: 2.0em; margin-bottom: 5px; }
 .pedigree-table.simple-mode .pedigree-cell[data-col="1"] .horse-name-en { font-size: 1.2em; display: block; }
 .pedigree-table.simple-mode .pedigree-cell[data-col="1"] .horse-year { font-size: 1.1em; }
 
-/* 2代前 (祖父母) */
 .pedigree-table.simple-mode .pedigree-cell[data-col="2"] .horse-name { font-size: 1.6em; margin-bottom: 3px; }
 .pedigree-table.simple-mode .pedigree-cell[data-col="2"] .horse-name-en { font-size: 1.0em; display: block; }
 
-/* 3代前 */
 .pedigree-table.simple-mode .pedigree-cell[data-col="3"] .horse-name { font-size: 1.3em; margin-bottom: 2px; }
 .pedigree-table.simple-mode .pedigree-cell[data-col="3"] .horse-name-en { font-size: 0.9em; }
 
-/* 4代前 */
 .pedigree-table.simple-mode .pedigree-cell[data-col="4"] .horse-name { font-size: 1.1em; }
 .pedigree-table.simple-mode .pedigree-cell[data-col="4"] .horse-name-en { font-size: 0.8em; display: block; }
 
-/* 5代前: 生年を消したので馬名のみ大きく表示 */
 .pedigree-table.simple-mode .pedigree-cell[data-col="5"] { padding: 1px 2px; }
 .pedigree-table.simple-mode .pedigree-cell[data-col="5"] .horse-name { 
-    font-size: 1.0em; 
-    line-height: 1.2;
-    white-space: normal;
+    font-size: 1.0em; line-height: 1.2; white-space: normal;
 }

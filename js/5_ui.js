@@ -63,7 +63,7 @@ window.App.UI = {
     },
 
     createPreviewTable: function() {
-        // テーブル構造定義は長いので簡略化せずそのまま記述
+        // テーブル構造定義
         const rows = [
             [{id:'s',rs:16,c:1}, {id:'ss',rs:8,c:2}, {id:'sss',rs:4,c:3}, {id:'ssss',rs:2,c:4}, {id:'sssss',c:5}],
             [{id:'ssssd',c:5}],
@@ -459,7 +459,6 @@ window.App.UI = {
         if (value.length === 0) return;
         const suggestions = [];
         
-        // App.State.db を参照
         if (App.State && App.State.db) {
             for (const horse of App.State.db.values()) {
                 const matchJa = horse.name_ja && horse.name_ja.includes(value);
@@ -575,16 +574,35 @@ window.App.UI = {
         finally { document.body.removeChild(cloneContainer); }
     },
 
-    updateLoadingState: function(isLoading, title = '処理中...', message = '') {
-        const saveBtn = document.getElementById('save-db');
+    // ★追加: トースト通知
+    showToast: function(message, duration = 3000) {
+        const container = document.getElementById('toast-container');
+        if (!container) return;
+
+        const toast = document.createElement('div');
+        toast.className = 'toast-message';
+        toast.textContent = message;
+
+        container.appendChild(toast);
+        
+        // アニメーション
+        requestAnimationFrame(() => {
+            toast.classList.add('show');
+        });
+
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => {
+                if(container.contains(toast)) container.removeChild(toast);
+            }, 300); // transition時間と合わせる
+        }, duration);
+    },
+
+    // ★修正: ローディング制御を分割
+    setGlobalLoading: function(isLoading, title = '処理中...', message = '') {
         const overlay = document.getElementById('global-loading-overlay');
         const titleEl = document.getElementById('loading-title');
         const msgEl = document.getElementById('loading-message');
-
-        if(saveBtn) {
-            saveBtn.disabled = isLoading;
-            saveBtn.textContent = isLoading ? '通信中...' : 'サーバーに保存';
-        }
 
         if (overlay && titleEl && msgEl) {
             if (isLoading) {
@@ -594,6 +612,14 @@ window.App.UI = {
             } else {
                 overlay.classList.add('hidden');
             }
+        }
+    },
+
+    setSaveButtonLoading: function(isLoading, label) {
+        const saveBtn = document.getElementById('save-db');
+        if (saveBtn) {
+            saveBtn.disabled = isLoading;
+            if (label) saveBtn.textContent = label;
         }
     },
 
