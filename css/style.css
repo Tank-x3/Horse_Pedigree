@@ -295,3 +295,75 @@ body {
     .pedigree-table { font-size: 12px; }
     .clone-container-for-image .pedigree-table { font-size: 13px; }
 }
+
+/* --- Step 1 追加スタイル: 操作性向上 & シンプルモード (バランス調整版) --- */
+
+/* 血統表セルのクリック誘導 */
+.pedigree-cell {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.pedigree-cell:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* シンプルモード: 詳細情報の選択的非表示 */
+/* 1〜4代目の「生年」は残し、「毛色」「系統」「国」を消す */
+.pedigree-table.simple-mode .horse-color,
+.pedigree-table.simple-mode .horse-lineage,
+.pedigree-table.simple-mode .horse-country,
+.pedigree-table.simple-mode .preview-year-5th /* 5代目の生年を消す */
+{
+    display: none !important;
+}
+
+/* シンプルモード時のレイアウト調整 */
+.pedigree-table.simple-mode .pedigree-cell {
+    padding: 2px;
+}
+.pedigree-table.simple-mode .pedigree-cell-content {
+    justify-content: center;
+    min-height: 0;
+}
+
+/* シンプルモード時のフォントサイズ調整 */
+.pedigree-table.simple-mode .horse-name {
+    font-weight: bold;
+    margin-bottom: 2px;
+}
+/* 英語名は控えめに */
+.pedigree-table.simple-mode .horse-name-en {
+    color: #666;
+    margin-bottom: 0;
+    line-height: 1.1;
+}
+/* 生年(1~4代)も控えめに */
+.pedigree-table.simple-mode .horse-year {
+    color: #444;
+    font-size: 0.9em;
+}
+
+/* 1代前 (親) */
+.pedigree-table.simple-mode .pedigree-cell[data-col="1"] .horse-name { font-size: 2.0em; margin-bottom: 5px; }
+.pedigree-table.simple-mode .pedigree-cell[data-col="1"] .horse-name-en { font-size: 1.2em; display: block; }
+.pedigree-table.simple-mode .pedigree-cell[data-col="1"] .horse-year { font-size: 1.1em; }
+
+/* 2代前 (祖父母) */
+.pedigree-table.simple-mode .pedigree-cell[data-col="2"] .horse-name { font-size: 1.6em; margin-bottom: 3px; }
+.pedigree-table.simple-mode .pedigree-cell[data-col="2"] .horse-name-en { font-size: 1.0em; display: block; }
+
+/* 3代前 */
+.pedigree-table.simple-mode .pedigree-cell[data-col="3"] .horse-name { font-size: 1.3em; margin-bottom: 2px; }
+.pedigree-table.simple-mode .pedigree-cell[data-col="3"] .horse-name-en { font-size: 0.9em; }
+
+/* 4代前 */
+.pedigree-table.simple-mode .pedigree-cell[data-col="4"] .horse-name { font-size: 1.1em; }
+.pedigree-table.simple-mode .pedigree-cell[data-col="4"] .horse-name-en { font-size: 0.8em; display: block; }
+
+/* 5代前: 生年を消したので馬名のみ大きく表示 */
+.pedigree-table.simple-mode .pedigree-cell[data-col="5"] { padding: 1px 2px; }
+.pedigree-table.simple-mode .pedigree-cell[data-col="5"] .horse-name { 
+    font-size: 1.0em; 
+    line-height: 1.2;
+    white-space: normal;
+}

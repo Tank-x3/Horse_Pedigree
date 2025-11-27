@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=0.11.2">
+    <link rel="stylesheet" href="css/style.css?v=0.12.1">
 </head>
 <body>
     <!-- ★追加: グローバルローディングオーバーレイ -->
@@ -99,7 +99,12 @@
         </section>
 
         <section class="preview-container tab-content" id="preview-tab">
-            <h2><span id="preview-title">血統表プレビュー</span></h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h2 style="margin: 0;"><span id="preview-title">血統表プレビュー</span></h2>
+                <label style="font-size: 0.9em; cursor: pointer;">
+                    <input type="checkbox" id="simple-mode-toggle"> シンプル表示
+                </label>
+            </div>
             <div class="pedigree-table-wrapper">
                 <table class="pedigree-table">
                     <tbody id="preview-table-body"></tbody>

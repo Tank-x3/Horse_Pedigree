@@ -202,6 +202,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (cell.rs) td.rowSpan = cell.rs;
                 td.dataset.col = cell.c;
+                td.dataset.horseId = cell.id; // ★追加: ID識別用
+
+                // ★追加: クリックで入力欄へジャンプ
+                td.onclick = (e) => handleCellClick(cell.id);
                 
                 td.innerHTML = `
                     <div class="pedigree-cell-content">
@@ -228,6 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
         initResponsiveTabs();
         initAutocomplete();
         initInputValidation();
+        initSimpleModeToggle(); // ★追加
     }
 
     function initGenerationSelector() {
@@ -292,8 +297,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const text = rawName ? `${rawName}${year ? ` (${year})` : ''} の血統` : '血統表プレビュー';
             title.textContent = text;
         } else {
-            const cell = document.querySelector(`.pedigree-cell[data-horse-id="${id}"]`); // ※注意: HTML側でdata属性付与が必要だが、現状ないのでIDから逆算するか、updatePreview内ではID指定で要素を取る
-            // 既存コード: preview-${id}-name を使用
+            // IDから要素を取得するのではなく、datasetから逆引きするのはコストが高いので
+            // 既存のID命名規則を利用して要素を取得
             const pName = document.getElementById(`preview-${id}-name`);
             if(!pName) return;
             
@@ -301,9 +306,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const col = parseInt(cellEl?.dataset.col);
             
             if (col === 5) {
+                // ★修正: 5代目の生年をCSSで制御できるようにクラス付きspanで囲む
                 let text = dispName;
-                if ((ja || en) && year) text += ` (${year})`;
-                else if (year) text = `(${year})`;
+                if ((ja || en) && year) text += `<span class="preview-year-5th"> (${year})</span>`;
+                else if (year) text = `<span class="preview-year-5th">(${year})</span>`;
                 pName.innerHTML = text;
             } else {
                 pName.innerHTML = dispName;
@@ -322,8 +328,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
-        // ★追加: クロス判定の更新 (入力のたびに再計算)
-        // 遅延実行してパフォーマンスへの影響を抑える（debounce）のが理想だが、今回は直接呼ぶ
         updateCrossList();
     }
 
@@ -1259,23 +1263,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderCrossList(crosses) {
         const container = document.getElementById('cross-list-container');
-        if(!container) return; // HTMLに追加が必要
+        if(!container) return; 
 
         // ハイライトリセット
         document.querySelectorAll('.pedigree-cell .horse-name').forEach(el => {
             el.classList.remove('cross-highlight-text');
         });
 
-        if (crosses.length === 0) {
-            container.innerHTML = '';
-            container.style.display = 'none';
-            return;
-        }
-
+        // ★修正: コンテナは常に表示し、内容を切り替える
         container.style.display = 'block';
         let html = '<span class="cross-list-title">5代内クロス:</span> ';
+
+        if (crosses.length === 0) {
+            // ★追加: なしの場合の表示
+            html += '<span style="color: #666;">なし</span>';
+            container.innerHTML = html;
+            return;
+        }
         
-        // 血量順、世代順などでソートするとより良いが、今回は登場順
         crosses.forEach(cross => {
             const pctStr = parseFloat(cross.pct.toFixed(2)) + '%';
             html += `<span class="cross-item"><span class="cross-item-name">${cross.name}</span> ${pctStr} (${cross.gens})</span> `;
@@ -1339,5 +1344,54 @@ document.addEventListener('DOMContentLoaded', () => {
             downloadFile(dataUrl, fileName, 'image/png');
         } catch (e) { console.error(e); alert('保存失敗'); }
         finally { document.body.removeChild(cloneContainer); }
+    }
+    
+    // --- Step 1 追加機能: シンプルモード & ジャンプ機能 ---
+
+    function initSimpleModeToggle() {
+        const toggle = document.getElementById('simple-mode-toggle');
+        const table = document.querySelector('.pedigree-table');
+        if(toggle && table) {
+            toggle.addEventListener('change', () => {
+                if(toggle.checked) {
+                    table.classList.add('simple-mode');
+                } else {
+                    table.classList.remove('simple-mode');
+                }
+            });
+        }
+    }
+
+    function handleCellClick(horseId) {
+        // スマホ用タブ切り替え: フォームタブが隠れている場合はクリックして表示
+        const formTabBtn = document.querySelector('.tab-button[data-tab="form"]');
+        if (formTabBtn) {
+            // タブコンテナが表示されている(＝スマホ表示)場合のみ切り替え
+            const tabContainer = document.querySelector('.tab-container');
+            if (tabContainer && getComputedStyle(tabContainer).display !== 'none') {
+                formTabBtn.click();
+            }
+        }
+
+        // 入力欄へスクロール
+        // targetの場合は 'target-name-ja', それ以外は 's-name-ja' 等
+        const targetInputId = (horseId === 'target') ? 'target-name-ja' : `${horseId}-name-ja`;
+        const inputEl = document.getElementById(targetInputId);
+
+        if(inputEl) {
+            // スムーズスクロール
+            inputEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            // 少し遅らせてフォーカス（スクロール完了待ち & 視認性向上）
+            setTimeout(() => {
+                inputEl.focus();
+                // 一時的に背景色を変えて強調
+                inputEl.style.transition = 'background-color 0.3s';
+                inputEl.style.backgroundColor = '#fff3cd'; // 薄い黄色
+                setTimeout(() => {
+                    inputEl.style.backgroundColor = '';
+                }, 1000);
+            }, 300);
+        }
     }
 });
