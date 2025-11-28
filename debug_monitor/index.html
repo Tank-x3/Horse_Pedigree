@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>5代血統表 作成ツール (Debug Mode)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="modal-overlay" id="global-loading-overlay" style="z-index: 2000;">
+        <div class="modal" style="width: 300px;">
+            <h3 id="loading-title">読み込み中...</h3>
+            <p id="loading-message">共通データベースから最新情報を取得しています。</p>
+        </div>
+    </div>
+
+    <header class="main-header">
+        <div class="header-group">
+            <button id="load-db">CSV読込</button>
+            <button id="save-local">ローカルに保存</button>
+            <button id="save-db">サーバーに保存</button>
+        </div>
+        <div class="header-group">
+            <button id="save-image">血統表を画像として保存</button>
+            <button id="download-log-btn" style="background-color: #ffdddd; color: #cc0000; border: 1px solid #cc0000; font-weight: bold; margin-left: 10px;">
+                🐞 デバッグログ保存
+            </button>
+        </div>
+    </header>
+    
+    <div class="tab-container">
+        <button class="tab-button active" data-tab="form">入力フォーム</button>
+        <button class="tab-button" data-tab="preview">血統表プレビュー</button>
+    </div>
+
+    <main class="main-container">
+        <section class="form-container tab-content active" id="form-tab">
+            <h2>入力フォーム</h2>
+            <div class="generation-selector">
+                <span>表示世代数:</span>
+                <label><input type="radio" name="generation" value="2" checked> 2代</label>
+                <label><input type="radio" name="generation" value="3"> 3代</label>
+                <label><input type="radio" name="generation" value="4"> 4代</label>
+                <label><input type="radio" name="generation" value="5"> 5代</label>
+            </div>
+            <div id="dynamic-form-container"></div>
+        </section>
+
+        <section class="preview-container tab-content" id="preview-tab">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h2 style="margin: 0;"><span id="preview-title">血統表プレビュー</span></h2>
+                </div>
+            <div class="pedigree-table-wrapper">
+                <table class="pedigree-table">
+                    <tbody id="preview-table-body"></tbody>
+                </table>
+            </div>
+            <div id="cross-list-container" class="cross-list-container"></div>
+        </section>
+    </main>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <script src="js/1_consts.js"></script>
+    <script src="js/2_utils.js"></script>
+    <script src="js/3_api.js"></script>
+    <script src="js/4_pedigree.js"></script>
+    <script src="js/5_ui.js"></script>
+    <script src="js/6_main.js"></script>
+</body>
+</html>
