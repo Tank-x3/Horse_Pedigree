@@ -236,11 +236,9 @@ window.App.Pedigree = {
             return a.name.localeCompare(b.name);
         });
 
-        // ▼▼▼ 修正箇所2: UI側が期待する形式({list: ...})で返す ▼▼▼
+        // ▼▼▼ 修正: debugMap を削除 ▼▼▼
         return {
-            list: crossResults,
-            debugMap: null
+            list: crossResults
         };
-        // ▲▲▲ 修正箇所2 ここまで ▲▲▲
     }
 };

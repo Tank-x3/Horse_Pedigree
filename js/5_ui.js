@@ -9,13 +9,15 @@ window.App.UI = {
         this.initAutocomplete();
         this.initInputValidation();
         this.initSimpleModeToggle();
-        this.initDebugModeToggle();
+        // 削除: this.initDebugModeToggle();
     },
 
     initDOM: function() {
         this.createFormGroups();
         this.createPreviewTable();
     },
+
+    // ... createFormGroups は変更なし ...
 
     createFormGroups: function() {
         const { ALL_IDS, GENERATION_LABELS } = App.Consts;
@@ -119,8 +121,8 @@ window.App.UI = {
 
                 td.onclick = (e) => this.handleCellClick(cell.id);
                 
+                // 修正: debug-info-overlay を削除
                 td.innerHTML = `
-                    <div class="debug-info-overlay" id="debug-${cell.id}"></div>
                     <div class="pedigree-cell-content">
                         <span class="horse-name" id="preview-${cell.id}-name">&nbsp;</span>
                         <span class="horse-name-en" id="preview-${cell.id}-name-en"></span>
@@ -138,6 +140,7 @@ window.App.UI = {
         });
     },
 
+    // ... initGenerationSelector, handleGenerationChange, initFormPreviewSync は変更なし ...
     initGenerationSelector: function() {
         const selectors = document.querySelectorAll('input[name="generation"]');
         if (selectors.length === 0) return;
@@ -181,6 +184,7 @@ window.App.UI = {
     },
 
     updatePreview: function(id) {
+        // ... (内容変更なし) ...
         const ja = document.getElementById(`${id}-name-ja`)?.value.trim();
         const en = document.getElementById(`${id}-name-en`)?.value.trim();
         const year = document.getElementById(`${id}-birth-year`)?.value.trim();
@@ -235,46 +239,12 @@ window.App.UI = {
         const result = App.Pedigree.calculateCrosses(formData);
         
         this.renderCrossList(result.list);
-        this.renderDebugInfo(result.debugMap);
+        // 削除: this.renderDebugInfo(result.debugMap);
     },
 
-    renderDebugInfo: function(debugMap) {
-        if (!debugMap) return;
-
-        const isDebugMode = document.getElementById('debug-mode-toggle')?.checked;
-
-        debugMap.forEach((info, htmlId) => {
-            const overlay = document.getElementById(`debug-${htmlId}`);
-            if (!overlay) return;
-
-            if (!info.name) {
-                overlay.innerHTML = '';
-                overlay.closest('td').style.height = ''; 
-                return;
-            }
-
-            const uuidShort = info.uuid.substring(0, 4);
-            const content = `
-                <div>
-                    <span class="debug-tag uuid">${uuidShort}</span>
-                    <span class="debug-tag group">Grp:${info.groupId ? info.groupId.substring(0,2) : '-'}</span>
-                </div>
-                <div class="debug-status ${info.debugStatus}">${info.debugStatus}</div>
-                <div class="debug-reason">${info.debugReason || ''}</div>
-            `;
-            
-            overlay.innerHTML = content;
-
-            if (isDebugMode) {
-                const cell = overlay.closest('td');
-                cell.style.height = 'auto';
-                const overlayHeight = overlay.scrollHeight;
-                const contentHeight = cell.querySelector('.pedigree-cell-content').scrollHeight;
-                const requiredHeight = Math.max(overlayHeight + 10, contentHeight + 60); 
-                cell.style.height = `${requiredHeight}px`;
-            }
-        });
-    },
+    // 削除: renderDebugInfo 関数全体
+    
+    // ... renderCrossList, initSimpleModeToggle, handleCellClick などは変更なし ...
 
     renderCrossList: function(crosses) {
         const container = document.getElementById('cross-list-container');
@@ -317,21 +287,7 @@ window.App.UI = {
         }
     },
 
-    initDebugModeToggle: function() {
-        const toggle = document.getElementById('debug-mode-toggle');
-        const table = document.querySelector('.pedigree-table');
-        if(toggle && table) {
-            toggle.addEventListener('change', () => {
-                if(toggle.checked) {
-                    table.classList.add('debug-mode');
-                } else {
-                    table.classList.remove('debug-mode');
-                    table.querySelectorAll('td').forEach(td => td.style.height = '');
-                }
-                this.updateCrossList();
-            });
-        }
-    },
+    // 削除: initDebugModeToggle 関数全体
 
     handleCellClick: function(horseId) {
         const formTabBtn = document.querySelector('.tab-button[data-tab="form"]');
@@ -354,7 +310,7 @@ window.App.UI = {
         }
     },
 
-    // --- 入力・データ取得系 ---
+    // ... 以降、getFormDataAsMap 以下は変更なし ...
     getFormDataAsMap: function() {
         const { ALL_IDS } = App.Consts;
         const formData = new Map();
@@ -363,8 +319,6 @@ window.App.UI = {
             const nameEn = document.getElementById(`${id}-name-en`).value.trim();
             const year = document.getElementById(`${id}-birth-year`).value.trim();
             
-            // ★修正点: IDが 'target' の場合、名前が空でも強制的に処理対象とする
-            // これにより、対象馬名未入力でも、入力済みの父母以降の情報からクロス判定が走るようになる
             if (id === 'target' || nameJa || nameEn) { 
                 const isFictional = document.getElementById(`${id}-is-fictional`).checked;
                 const group = document.querySelector(`.horse-input-group[data-horse-id="${id}"]`);
@@ -403,7 +357,6 @@ window.App.UI = {
         return '';
     },
 
-    // --- バリデーション系 ---
     initInputValidation: function() {
         const { ALL_IDS } = App.Consts;
         ALL_IDS.forEach(id => {
@@ -472,7 +425,6 @@ window.App.UI = {
         return true;
     },
 
-    // --- その他UI機能 ---
     initResponsiveTabs: function() {
         const tabButtons = document.querySelectorAll('.tab-button');
         const tabContents = document.querySelectorAll('.tab-content');
@@ -486,37 +438,8 @@ window.App.UI = {
             });
         });
     },
-
-    initSimpleModeToggle: function() {
-        const toggle = document.getElementById('simple-mode-toggle');
-        const table = document.querySelector('.pedigree-table');
-        if(toggle && table) {
-            toggle.addEventListener('change', () => {
-                if(toggle.checked) {
-                    table.classList.add('simple-mode');
-                } else {
-                    table.classList.remove('simple-mode');
-                }
-            });
-        }
-    },
-
-    initDebugModeToggle: function() {
-        const toggle = document.getElementById('debug-mode-toggle');
-        const table = document.querySelector('.pedigree-table');
-        if(toggle && table) {
-            toggle.addEventListener('change', () => {
-                if(toggle.checked) {
-                    table.classList.add('debug-mode');
-                } else {
-                    table.classList.remove('debug-mode');
-                    table.querySelectorAll('td').forEach(td => td.style.height = '');
-                }
-                this.updateCrossList();
-            });
-        }
-    },
-
+    
+    // ... initAutocomplete, showSuggestions, populateFormRecursively は変更なし ...
     initAutocomplete: function() {
         const { ALL_IDS } = App.Consts;
         ALL_IDS.forEach(id => {
@@ -714,5 +637,29 @@ window.App.UI = {
             listContainer.appendChild(card);
         });
         document.getElementById('save-confirm-modal-overlay').classList.remove('hidden');
+    },
+
+    // --- Toast通知（残す）---
+    showToast: function(message, duration = 3000) {
+        const container = document.getElementById('toast-container');
+        if (!container) return;
+
+        const toast = document.createElement('div');
+        toast.className = 'toast-message';
+        toast.textContent = message;
+
+        container.appendChild(toast);
+        
+        // アニメーション
+        requestAnimationFrame(() => {
+            toast.classList.add('show');
+        });
+
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => {
+                if(container.contains(toast)) container.removeChild(toast);
+            }, 300);
+        }, duration);
     }
 };
