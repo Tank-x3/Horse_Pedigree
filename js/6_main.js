@@ -18,6 +18,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function initialize() {
         try {
+            // ★ログ追加: 起動
+            App.Logger.add('SYSTEM', 'App Initializing...');
+            
             initButtons(); initModal(); 
             App.UI.initDOM(); 
             App.UI.initGenerationSelector(); 
@@ -27,12 +30,10 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) { console.error('Initialization Error:', e); }
 
         if (typeof GAS_API_URL !== 'undefined' && GAS_API_URL) {
-            // ★変更: 起動時のオーバーレイ表示のみ
             App.UI.setGlobalLoading(true, '読み込み中...', '共通データベースから最新情報を取得しています。');
             try {
                 await fetchDB(true);
                 App.UI.setGlobalLoading(false);
-                // ★追加: ようこそモーダル廃止 -> トースト通知
                 App.UI.showToast(`クラウドDBに接続しました（${state.db.size}件）`);
             } catch (e) {
                 // fetchDB内でエラー表示済み
@@ -40,7 +41,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             console.warn('GAS_API_URL is not set.');
             document.getElementById('global-loading-overlay').classList.add('hidden');
-            // ローカルモード時は特に通知なし、またはトースト表示
             App.UI.showToast('オフラインモードで起動しました');
         }
     }
@@ -53,11 +53,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const imgBtn = document.getElementById('save-image');
         const cancelSaveBtn = document.getElementById('cancel-save-btn');
         const execSaveBtn = document.getElementById('execute-save-btn');
+        const logBtn = document.getElementById('download-debug-log');
 
         if(loadBtn) loadBtn.onclick = handleLoadDB;
         if(saveLocalBtn) saveLocalBtn.onclick = handleSaveLocal;
         if(saveBtn) saveBtn.onclick = handleSaveDBRequest;
         if(imgBtn) imgBtn.onclick = App.UI.handleSaveImage.bind(App.UI);
+        
+        // ★修正: デバッグモード時のみボタンを表示・有効化
+        if(logBtn) {
+            if (App.Logger && App.Logger.isEnabled) {
+                logBtn.style.display = 'inline-block'; // 表示
+                logBtn.onclick = () => App.Logger.downloadLogs();
+            } else {
+                logBtn.style.display = 'none'; // 通常時は隠す
+            }
+        }
         
         if(cancelSaveBtn) cancelSaveBtn.onclick = () => {
             document.getElementById('save-confirm-modal-overlay').classList.add('hidden');
@@ -67,7 +78,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function initModal() {
-        // ★変更: 起動時モーダルの初期化処理を削除
         const migrationModal = document.getElementById('migration-modal-overlay');
         const closeMigrationBtn = document.getElementById('close-migration-wizard');
         if(closeMigrationBtn) closeMigrationBtn.onclick = () => migrationModal.classList.add('hidden');
@@ -75,14 +85,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- DB操作ロジック ---
     async function fetchDB(isInitial = false) {
+        App.Logger.add('DB', 'Fetching DB start');
         try {
             const data = await App.API.fetchAllHorses();
             data.forEach(horse => {
                 if(horse.id) state.db.set(horse.id, horse);
             });
             console.log(`DB Loaded: ${state.db.size} records`);
+            App.Logger.add('DB', 'Fetch DB success', { count: state.db.size });
         } catch (error) {
             console.error('Fetch Error:', error);
+            App.Logger.add('ERROR', 'Fetch DB failed', { error: error.message });
             if (isInitial) {
                 const msgEl = document.getElementById('loading-message');
                 if(msgEl) {
@@ -101,43 +114,40 @@ document.addEventListener('DOMContentLoaded', () => {
         if(state.isLoading) return;
         state.isLoading = true;
         
-        // ★変更: ボタンとオーバーレイを個別に制御
         App.UI.setSaveButtonLoading(true, '通信中...');
         App.UI.setGlobalLoading(true, '保存中...', 'サーバーにデータを送信しています...');
+        
+        // ★ログ追加: 送信開始
+        App.Logger.add('DB', 'Post DB start', { count: dataToSave.size });
 
         try {
             const horsesArray = Array.from(dataToSave.values());
             await App.API.saveHorses(horsesArray);
             
-            // ★重要変更: 送信成功後、即座にオーバーレイを消す
             App.UI.setGlobalLoading(false);
-            
-            // ボタンはまだ「同期中」にしておく
             App.UI.setSaveButtonLoading(true, '同期中...');
-            
-            // トーストで完了通知
             App.UI.showToast('保存が完了しました');
             state.isDirty = false;
             
-            // バックグラウンドで再取得
             await fetchDB(); 
         } catch (error) {
             console.error('Post Error:', error);
-            App.UI.setGlobalLoading(false); // エラー時もオーバーレイは消す
+            App.Logger.add('ERROR', 'Post DB failed', { error: error.message });
+            App.UI.setGlobalLoading(false);
             alert(`保存に失敗しました。\n${error.message}`);
         } finally {
             state.isLoading = false;
-            // 最後にボタンを復帰
             App.UI.setSaveButtonLoading(false, 'サーバーに保存');
         }
     }
 
     async function handleSaveDBRequest() {
+        App.Logger.add('LOGIC', 'handleSaveDBRequest started');
+        
         const hasInput = ALL_IDS.some(id => {
             const ja = document.getElementById(`${id}-name-ja`);
             const en = document.getElementById(`${id}-name-en`);
             const year = document.getElementById(`${id}-birth-year`);
-            // ★修正: 名前だけでなく生年などの入力も「入力あり」とみなす
             return (ja && ja.value.trim()) || (en && en.value.trim()) || (year && year.value.trim());
         });
         if (hasInput && !App.UI.checkRequiredFields()) return;
@@ -145,7 +155,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if(state.isLoading) return;
         state.isLoading = true;
         
-        // 同期チェック中はオーバーレイを出す
         App.UI.setSaveButtonLoading(true, '通信中...');
         App.UI.setGlobalLoading(true, '同期中...', 'データの競合を確認しています...');
 
@@ -160,27 +169,42 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const formData = App.UI.getFormDataAsMap();
         const conflicts = [];
+        
+        // ★ログ追加: フォームデータ数
+        App.Logger.add('LOGIC', 'Form data collected', { count: formData.size });
 
         for (const [tempId, formHorse] of formData.entries()) {
             let targetUUID = formHorse.id;
             let dbHorse = null;
+            let matchReason = ''; // ★ログ用
+
             if (!targetUUID || !state.db.has(targetUUID)) {
+                // IDがない場合の名寄せロジック
                 for (const [existingId, existingHorse] of state.db.entries()) {
-                    // 名前がない馬は名寄せ検索の対象外
                     const formName = formHorse.name_ja || formHorse.name_en;
                     if (!formName) continue;
 
                     if (!formHorse.is_fictional && !existingHorse.is_fictional) {
+                        // 実在馬: 欧字名一致 & 生年一致
                         if (existingHorse.name_en && formHorse.name_en &&
                             existingHorse.name_en.toLowerCase().trim() === formHorse.name_en.toLowerCase().trim() &&
                             String(existingHorse.birth_year) === String(formHorse.birth_year)) {
-                            targetUUID = existingId; dbHorse = existingHorse; break;
+                            targetUUID = existingId; dbHorse = existingHorse; 
+                            matchReason = 'RealHorse (NameEN + Year)';
+                            break;
                         }
-                    } else if (existingHorse.name_ja === formHorse.name_ja && String(existingHorse.birth_year) === String(formHorse.birth_year)) {
-                        targetUUID = existingId; dbHorse = existingHorse; break;
+                    // ★修正: カナ名が入力されている場合のみ判定する（空文字同士の一致を排除）
+                    } else if (formHorse.name_ja && existingHorse.name_ja === formHorse.name_ja && String(existingHorse.birth_year) === String(formHorse.birth_year)) {
+                        // 架空馬など: カナ名一致 & 生年一致
+                        targetUUID = existingId; dbHorse = existingHorse; 
+                        matchReason = 'Fictional/Ja (NameJA + Year)';
+                        break;
                     }
                 }
-            } else { dbHorse = state.db.get(targetUUID); }
+            } else { 
+                dbHorse = state.db.get(targetUUID);
+                matchReason = 'UUID Match';
+            }
 
             if (dbHorse) {
                 const diffs = [];
@@ -190,12 +214,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     const formVal = String(formHorse[field] || '').trim();
                     if (dbVal !== '' && dbVal !== formVal) diffs.push({ field, old: dbVal, new: formVal });
                 });
+                
                 if (dbHorse.is_fictional !== formHorse.is_fictional) {
                     if (formHorse.is_fictional) dbHorse.is_fictional = true; 
                 }
+
                 if (diffs.length > 0) {
                     formHorse.id = targetUUID; 
                     conflicts.push({ horse: formHorse, dbHorse, diffs });
+                    // ★重要ログ: なぜ競合判定されたか
+                    App.Logger.add('WARN', 'Conflict Detected', { 
+                        tempId, targetUUID, matchReason, 
+                        formName: formHorse.name_ja, dbName: dbHorse.name_ja, diffs 
+                    });
                 } else {
                     Object.assign(dbHorse, formHorse);
                     if (formHorse.id && formHorse.id !== targetUUID) {
@@ -208,15 +239,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (conflicts.length > 0) {
             state.isLoading = false;
             App.UI.setGlobalLoading(false);
-            // 競合時はボタンを戻す
             App.UI.setSaveButtonLoading(false, 'サーバーに保存');
             
             state.pendingSaveData = formData;
             App.UI.showSaveConfirmModal(conflicts, formData);
         } else {
-            // 競合なし -> そのまま保存処理へ（isLoading=trueのまま）
-            // postDB内で再度ボタン状態などは設定される
-            state.isLoading = false; // postDBのガードを通過させるため一旦false
+            state.isLoading = false; 
             saveDataDirectly(formData);
         }
     }
@@ -232,15 +260,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (actionInput.value === 'new') {
                     const formHorse = state.pendingSaveData.get(tempId);
                     if (formHorse) {
-                        formHorse.id = null; 
+                        formHorse.id = null; // 新規発行させる
                         state.pendingSaveData.set(tempId, formHorse);
+                        App.Logger.add('ACTION', 'Conflict Resolution: New', { tempId });
                     }
                 } else if (actionInput.value === 'skip') {
                     state.pendingSaveData.delete(tempId);
+                    App.Logger.add('ACTION', 'Conflict Resolution: Skip', { tempId });
                 } else {
                     const formHorse = state.pendingSaveData.get(tempId);
                     const dbHorse = state.db.get(formHorse.id);
                     if(dbHorse) Object.assign(dbHorse, formHorse);
+                    App.Logger.add('ACTION', 'Conflict Resolution: Update', { tempId, uuid: formHorse.id });
                 }
             }
         });
@@ -251,24 +282,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function saveDataDirectly(formData) {
+        App.Logger.add('LOGIC', 'saveDataDirectly start', { count: formData.size });
         const nameMap = new Map();
 
-        // ★修正: 名前がない馬もスキップせず、必ずIDを発行する
         for (const horse of formData.values()) {
             const name = horse.name_ja || horse.name_en;
             
             if (name) {
-                // 名前がある場合のみ、同一保存バッチ内でのID共有（名寄せ）を行う
                 const key = `${name}_${horse.birth_year || ''}`;
                 if (nameMap.has(key)) {
+                    const originalId = horse.id;
                     horse.id = nameMap.get(key);
+                    App.Logger.add('LOGIC', 'ID Merged by NameKey', { key, originalId, newId: horse.id });
                 } else {
-                    if (!horse.id) horse.id = generateUUID();
+                    if (!horse.id) {
+                        horse.id = generateUUID();
+                        App.Logger.add('LOGIC', 'Generated UUID (Name exists)', { name, uuid: horse.id });
+                    }
                     nameMap.set(key, horse.id);
                 }
             } else {
-                // 名前がない場合も、IDがなければ発行する（最重要修正）
-                if (!horse.id) horse.id = generateUUID();
+                if (!horse.id) {
+                    horse.id = generateUUID();
+                    App.Logger.add('LOGIC', 'Generated UUID (No name)', { uuid: horse.id });
+                }
             }
         }
 
@@ -290,8 +327,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const newDb = new Map(state.db);
         for (const horse of formData.values()) {
-            // ★防御的記述: 万が一IDがない場合はここでも補填（念には念を）
-            if (!horse.id) horse.id = generateUUID();
+            if (!horse.id) horse.id = generateUUID(); // 防御
 
             if (newDb.has(horse.id)) {
                 Object.assign(newDb.get(horse.id), horse);
@@ -308,6 +344,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleSaveLocal() {
+        App.Logger.add('ACTION', 'handleSaveLocal');
         if (!confirm('現在のデータベースの内容をCSVファイルとしてダウンロードします。\nこの操作では、クラウド上の共有データベースには保存されません。\n\n続行しますか？')) return;
 
         const formData = App.UI.getFormDataAsMap();
@@ -323,7 +360,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         for (const horse of formData.values()) {
             const name = horse.name_ja || horse.name_en;
-            // ★修正: ローカル保存時も名前なしを許容してID発行
             if (name) {
                 const key = `${name}_${horse.birth_year || ''}`;
                 if (nameMap.has(key)) {
@@ -372,6 +408,9 @@ document.addEventListener('DOMContentLoaded', () => {
         alert('CSVファイルを保存しました。\n現在入力中のデータもリストに追加されました。');
     }
 
+    // handleLoadDB, parseCSV, convertDbToCSV, initPageLeaveWarning 等はそのまま維持
+    // (スペース省略のため、上記コードブロックで完結させます)
+
     function handleLoadDB() {
         const input = document.createElement('input');
         input.type = 'file'; input.accept = '.csv,text/csv,text/plain';
@@ -387,6 +426,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function parseCSV(csvText) {
+        App.Logger.add('ACTION', 'parseCSV');
         const lines = csvText.trim().split(/\r?\n/);
         const header = lines.shift().split(',').map(h => h.trim());
         const isOldFormat = !header.includes('uuid');

@@ -4,6 +4,7 @@ window.App = window.App || {};
 window.App.UI = {
     // --- 初期化・生成系 ---
     initUI: function() {
+        App.Logger.add('UI', 'initUI started');
         this.initFormPreviewSync();
         this.initResponsiveTabs();
         this.initAutocomplete();
@@ -55,6 +56,13 @@ window.App.UI = {
                     <input type="text" id="${id}-color" class="input-detail" placeholder="毛色">
                     <input type="text" id="${id}-family-no" class="input-detail" placeholder="F-No.">
                     <input type="text" id="${id}-lineage" class="input-lineage" placeholder="系統 (例: Halo系)">
+                </div>
+                <div class="input-row" style="margin-top: 5px; border-top: 1px dashed #ccc; padding-top: 5px;">
+                    <label style="font-size: 0.85em; color: #d9534f; cursor: pointer;">
+                        <input type="checkbox" id="${id}-allow-rename" class="allow-rename-check"> 
+                        ⚠️ 既存データの馬名を修正する (IDを維持)
+                    </label>
+                </div>
                 </div>
             `;
             group.appendChild(details);
@@ -171,7 +179,13 @@ window.App.UI = {
                 const el = document.getElementById(inId);
                 if(el) {
                     const eventType = el.type === 'checkbox' ? 'change' : 'input';
-                    el.addEventListener(eventType, () => this.updatePreview(id));
+                    // 入力イベントのログ取り
+                    el.addEventListener(eventType, (e) => {
+                        // 頻繁に出るため、入力完了に近いタイミング（blurなど）が良いが、
+                        // 動作追跡のため簡易的に記録する（大量になるので注意）
+                        // App.Logger.add('UI', `Input changed: ${inId}`, { val: el.value, checked: el.checked });
+                        this.updatePreview(id);
+                    });
                 }
             });
             this.updatePreview(id);
@@ -305,11 +319,17 @@ window.App.UI = {
             const nameEn = document.getElementById(`${id}-name-en`).value.trim();
             const year = document.getElementById(`${id}-birth-year`).value.trim();
             
-            // ★修正: 生年のみ入力など、名前以外がある場合も収集対象とする
             if (id === 'target' || nameJa || nameEn || year) { 
                 const isFictional = document.getElementById(`${id}-is-fictional`).checked;
                 const group = document.querySelector(`.horse-input-group[data-horse-id="${id}"]`);
+                
+                // ★ログ追加: どの要素からUUIDを取得しようとしているか
                 const uuid = group ? group.dataset.uuid : null;
+                /*
+                if (uuid) {
+                    App.Logger.add('DATA', `Reading UUID from DOM`, { id, uuid });
+                }
+                */
 
                 let sireName = '', damName = '';
                 if (id === 'target') {
@@ -351,6 +371,36 @@ window.App.UI = {
             const enInput = document.getElementById(`${id}-name-en`);
             const fictCheck = document.getElementById(`${id}-is-fictional`);
             if(!jaInput || !enInput || !fictCheck) return;
+
+            // --- 修正: 名前入力時に、紐付いているUUIDをクリアする ---
+            const clearUUID = (e) => {
+                // プログラムによる入力は無視
+                if (e && !e.isTrusted) return;
+
+                // ★追加: 「馬名修正モード」がONなら、IDをクリアせずに維持する（修正を許可）
+                const allowRename = document.getElementById(`${id}-allow-rename`)?.checked;
+                if (allowRename) {
+                    if (window.App && window.App.Logger) {
+                        window.App.Logger.add('UI', `UUID Kept (Rename Mode ON)`, { id });
+                    }
+                    return; 
+                }
+
+                const group = document.querySelector(`.horse-input-group[data-horse-id="${id}"]`);
+                if (group && group.dataset.uuid) {
+                    delete group.dataset.uuid;
+                    // デバッグログ出力
+                    if (window.App && window.App.Logger) {
+                        window.App.Logger.add('UI', `UUID Cleared by input (User Action)`, { id });
+                    }
+                }
+            };
+
+            // 日本語名・英語名どちらを変更してもIDリンクを切る
+            jaInput.addEventListener('input', clearUUID);
+            enInput.addEventListener('input', clearUUID);
+            // -------------------------------------------------------------------
+
             jaInput.addEventListener('input', () => this.validateInput(jaInput, 'ja'));
             enInput.addEventListener('input', () => this.validateInput(enInput, 'en'));
             this.updatePlaceholder(fictCheck, jaInput, enInput);
@@ -470,6 +520,8 @@ window.App.UI = {
             if (horse.birth_year) label += ` ${horse.birth_year}`;
             item.textContent = label;
             item.addEventListener('click', () => {
+                // ★ログ追加: オートコンプリート選択
+                App.Logger.add('UI', 'Autocomplete Selected', { idPrefix, horseId: horse.id, name: horse.name_ja || horse.name_en });
                 this.populateFormRecursively(horse.id, idPrefix);
                 container.innerHTML = '';
             });
@@ -477,11 +529,16 @@ window.App.UI = {
         });
     },
 
-    // ★修正: 親データがない場合にフォームをクリアする処理を追加
     populateFormRecursively: function(horseId, idPrefix) {
+        // ★ログ追加: 再帰処理の開始地点
+        App.Logger.add('LOGIC', 'populateFormRecursively START', { horseId, idPrefix });
+        
         if (!App.State || !App.State.db) return;
         const horse = App.State.db.get(horseId);
-        if (!horse) return;
+        if (!horse) {
+            App.Logger.add('WARN', 'populateFormRecursively: Horse not found in DB', { horseId });
+            return;
+        }
         
         // --- 1. 現世代の入力 ---
         const ja = document.getElementById(`${idPrefix}-name-ja`);
@@ -490,7 +547,12 @@ window.App.UI = {
         const fict = document.getElementById(`${idPrefix}-is-fictional`);
         
         const group = document.querySelector(`.horse-input-group[data-horse-id="${idPrefix}"]`);
-        if (group) group.dataset.uuid = horseId;
+        
+        // ★DOMへのUUIDセットを記録
+        if (group) {
+            group.dataset.uuid = horseId;
+            // App.Logger.add('DOM', `Set dataset.uuid`, { idPrefix, uuid: horseId });
+        }
 
         // 値がない場合は空文字をセットして「ゴミ」を消す
         if(ja) ja.value = horse.name_ja || '';
@@ -508,6 +570,10 @@ window.App.UI = {
         if(family) family.value = horse.family_no || '';
         if(lineage) lineage.value = horse.lineage || '';
         
+        // ★追加: データ読み込み時は、必ず「修正モード」をOFFにリセットする（安全のため）
+        const renameCheck = document.getElementById(`${idPrefix}-allow-rename`);
+        if (renameCheck) renameCheck.checked = false;
+        
         // 入力イベント発火（プレビュー更新用）
         if(ja) ja.dispatchEvent(new Event('input', { bubbles: true }));
 
@@ -523,14 +589,12 @@ window.App.UI = {
         if (horse.sire_id) {
             this.populateFormRecursively(horse.sire_id, sirePrefix);
         } else if (horse.is_fictional && horse.sire_name) {
-            // 架空馬で親名だけある場合
-            this.clearFormRecursively(sirePrefix); // 一旦クリア
+            this.clearFormRecursively(sirePrefix); 
             const sGroup = document.querySelector(`.horse-input-group[data-horse-id="${sirePrefix}"]`);
             if(sGroup) delete sGroup.dataset.uuid;
             const sJa = document.getElementById(`${sirePrefix}-name-ja`);
             if(sJa) { sJa.value = horse.sire_name; sJa.dispatchEvent(new Event('input', { bubbles: true })); }
         } else {
-            // ★重要: 親がいない場合は、フォーム上の古いデータを再帰的に消す
             this.clearFormRecursively(sirePrefix);
         }
 
@@ -538,20 +602,20 @@ window.App.UI = {
         if (horse.dam_id) {
             this.populateFormRecursively(horse.dam_id, damPrefix);
         } else if (horse.is_fictional && horse.dam_name) {
-            this.clearFormRecursively(damPrefix); // 一旦クリア
+            this.clearFormRecursively(damPrefix); 
             const dGroup = document.querySelector(`.horse-input-group[data-horse-id="${damPrefix}"]`);
             if(dGroup) delete dGroup.dataset.uuid;
             const dJa = document.getElementById(`${damPrefix}-name-ja`);
             if(dJa) { dJa.value = horse.dam_name; dJa.dispatchEvent(new Event('input', { bubbles: true })); }
         } else {
-            // ★重要: 親がいない場合は、フォーム上の古いデータを再帰的に消す
             this.clearFormRecursively(damPrefix);
         }
     },
 
-    // ★追加: 指定ID以下のフォームを再帰的にクリアするヘルパー関数
     clearFormRecursively: function(idPrefix) {
         if (idPrefix.length > 5) return;
+        
+        // App.Logger.add('LOGIC', 'clearFormRecursively', { idPrefix });
 
         // 現世代のクリア
         const inputs = [
@@ -577,6 +641,7 @@ window.App.UI = {
     },
 
     handleSaveImage: async function() {
+        // (省略: 変更なし)
         const { IMAGE_WIDTHS } = App.Consts;
         const { downloadFile } = App.Utils;
         
@@ -650,6 +715,8 @@ window.App.UI = {
     },
 
     showSaveConfirmModal: function(conflicts, pendingSaveData) {
+        App.Logger.add('UI', 'Showing Conflict Modal', { conflictCount: conflicts.length });
+        
         const listContainer = document.getElementById('save-confirm-list');
         listContainer.innerHTML = '';
 
