@@ -10,10 +10,20 @@ window.App.Pedigree = {
         for (const [id, horse] of formData) {
             if (!horse) continue;
             const name = (horse.name_ja || horse.name_en || '').trim();
-            if (!name) continue;
 
-            // 生年も文字列化してトリム (数値/文字列の差異やスペース混入を防止)
+            // ▼▼▼ 修正箇所1: 名前が空でも対象馬(target)なら通す ▼▼▼
+            if (!name && id !== 'target') continue;
+
+            // 生年も文字列化してトリム
             const year = (horse.birth_year || '').toString().trim();
+            
+            // 名前がない(対象馬の)場合は、名寄せキーを作らず常にユニーク扱いとする
+            if (!name) {
+                if (!horse.id) horse.id = `temp_${Math.random().toString(36).substr(2, 9)}`;
+                horse.resolvedId = horse.id;
+                continue; 
+            }
+            // ▲▲▲ 修正箇所1 ここまで ▲▲▲
             
             // 名寄せキー: 生年があれば「名前_生年」、なければ「名前」
             const key = year ? `${name}_${year}` : name;
@@ -48,7 +58,6 @@ window.App.Pedigree = {
         const traverse = (currentId, currentPath, gen) => {
             if (gen > 5) return; // 5代まで
             const horse = formData.get(currentId);
-            // 名寄せされていない(データがない)場合はストップ
             if (!horse || !horse.resolvedId) return;
             
             if (gen > 0) {
@@ -64,7 +73,6 @@ window.App.Pedigree = {
             }
             const nextPath = [...currentPath, horse.resolvedId];
             
-            // 次の世代のIDキーを生成 (s->ss, s->sd)
             let sKey, dKey;
             if (currentId === 'target') { sKey='s'; dKey='d'; }
             else { sKey=currentId+'s'; dKey=currentId+'d'; }
@@ -158,8 +166,6 @@ window.App.Pedigree = {
 
         tempValidCrossGroups.forEach(groupIdA => {
             const allNodes = groups.get(groupIdA);
-            
-            // ノードを「馬(UUID)」ごとに分類
             const membersByUuid = new Map();
             allNodes.forEach(node => {
                 if (!membersByUuid.has(node.uuid)) membersByUuid.set(node.uuid, []);
@@ -169,7 +175,6 @@ window.App.Pedigree = {
             let isGroupRedundant = true;
 
             for (const [uuid, nodes] of membersByUuid) {
-                // この馬(UUID)の「個人的な共通カバークロス」を探す
                 let personalIntersection = null;
 
                 for (const node of nodes) {
@@ -180,27 +185,20 @@ window.App.Pedigree = {
                             pathCovers.add(pathGroupId);
                         }
                     }
-
-                    // カバーなしルートがあれば、その馬は独立
                     if (pathCovers.size === 0) {
                         personalIntersection = new Set();
                         break;
                     }
-
                     if (personalIntersection === null) {
                         personalIntersection = pathCovers;
                     } else {
-                        // 積集合
                         const nextIntersection = new Set();
                         for (const g of personalIntersection) {
                             if (pathCovers.has(g)) nextIntersection.add(g);
                         }
                         personalIntersection = nextIntersection;
                     }
-
-                    if (personalIntersection.size === 0) {
-                        break;
-                    }
+                    if (personalIntersection.size === 0) break;
                 }
 
                 if (personalIntersection === null || personalIntersection.size === 0) {
@@ -208,7 +206,6 @@ window.App.Pedigree = {
                     break;
                 }
             }
-
             if (isGroupRedundant) {
                 finalValidCrossGroups.delete(groupIdA);
             }
@@ -239,6 +236,11 @@ window.App.Pedigree = {
             return a.name.localeCompare(b.name);
         });
 
-        return crossResults;
+        // ▼▼▼ 修正箇所2: UI側が期待する形式({list: ...})で返す ▼▼▼
+        return {
+            list: crossResults,
+            debugMap: null
+        };
+        // ▲▲▲ 修正箇所2 ここまで ▲▲▲
     }
 };
