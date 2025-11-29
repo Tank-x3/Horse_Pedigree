@@ -9,6 +9,7 @@ window.App.UI = {
         this.initAutocomplete();
         this.initInputValidation();
         this.initSimpleModeToggle();
+        this.initDebugModeToggle();
     },
 
     initDOM: function() {
@@ -119,6 +120,7 @@ window.App.UI = {
                 td.onclick = (e) => this.handleCellClick(cell.id);
                 
                 td.innerHTML = `
+                    <div class="debug-info-overlay" id="debug-${cell.id}"></div>
                     <div class="pedigree-cell-content">
                         <span class="horse-name" id="preview-${cell.id}-name">&nbsp;</span>
                         <span class="horse-name-en" id="preview-${cell.id}-name-en"></span>
@@ -139,9 +141,7 @@ window.App.UI = {
     initGenerationSelector: function() {
         const selectors = document.querySelectorAll('input[name="generation"]');
         if (selectors.length === 0) return;
-        selectors.forEach(radio => {
-            radio.onclick = () => this.handleGenerationChange();
-        });
+        selectors.forEach(radio => { radio.onclick = () => this.handleGenerationChange(); });
         this.handleGenerationChange();
     },
 
@@ -232,8 +232,48 @@ window.App.UI = {
 
     updateCrossList: function() {
         const formData = this.getFormDataAsMap();
-        const crossResults = App.Pedigree.calculateCrosses(formData);
-        this.renderCrossList(crossResults);
+        const result = App.Pedigree.calculateCrosses(formData);
+        
+        this.renderCrossList(result.list);
+        this.renderDebugInfo(result.debugMap);
+    },
+
+    renderDebugInfo: function(debugMap) {
+        if (!debugMap) return;
+
+        const isDebugMode = document.getElementById('debug-mode-toggle')?.checked;
+
+        debugMap.forEach((info, htmlId) => {
+            const overlay = document.getElementById(`debug-${htmlId}`);
+            if (!overlay) return;
+
+            if (!info.name) {
+                overlay.innerHTML = '';
+                overlay.closest('td').style.height = ''; 
+                return;
+            }
+
+            const uuidShort = info.uuid.substring(0, 4);
+            const content = `
+                <div>
+                    <span class="debug-tag uuid">${uuidShort}</span>
+                    <span class="debug-tag group">Grp:${info.groupId ? info.groupId.substring(0,2) : '-'}</span>
+                </div>
+                <div class="debug-status ${info.debugStatus}">${info.debugStatus}</div>
+                <div class="debug-reason">${info.debugReason || ''}</div>
+            `;
+            
+            overlay.innerHTML = content;
+
+            if (isDebugMode) {
+                const cell = overlay.closest('td');
+                cell.style.height = 'auto';
+                const overlayHeight = overlay.scrollHeight;
+                const contentHeight = cell.querySelector('.pedigree-cell-content').scrollHeight;
+                const requiredHeight = Math.max(overlayHeight + 10, contentHeight + 60); 
+                cell.style.height = `${requiredHeight}px`;
+            }
+        });
     },
 
     renderCrossList: function(crosses) {
@@ -247,7 +287,7 @@ window.App.UI = {
         container.style.display = 'block';
         let html = '<span class="cross-list-title">5代内クロス:</span> ';
 
-        if (crosses.length === 0) {
+        if (!crosses || crosses.length === 0) {
             html += '<span style="color: #666;">なし</span>';
             container.innerHTML = html;
             return;
@@ -264,6 +304,33 @@ window.App.UI = {
         });
 
         container.innerHTML = html;
+    },
+
+    initSimpleModeToggle: function() {
+        const toggle = document.getElementById('simple-mode-toggle');
+        const table = document.querySelector('.pedigree-table');
+        if(toggle && table) {
+            toggle.addEventListener('change', () => {
+                if(toggle.checked) table.classList.add('simple-mode');
+                else table.classList.remove('simple-mode');
+            });
+        }
+    },
+
+    initDebugModeToggle: function() {
+        const toggle = document.getElementById('debug-mode-toggle');
+        const table = document.querySelector('.pedigree-table');
+        if(toggle && table) {
+            toggle.addEventListener('change', () => {
+                if(toggle.checked) {
+                    table.classList.add('debug-mode');
+                } else {
+                    table.classList.remove('debug-mode');
+                    table.querySelectorAll('td').forEach(td => td.style.height = '');
+                }
+                this.updateCrossList();
+            });
+        }
     },
 
     handleCellClick: function(horseId) {
@@ -296,7 +363,9 @@ window.App.UI = {
             const nameEn = document.getElementById(`${id}-name-en`).value.trim();
             const year = document.getElementById(`${id}-birth-year`).value.trim();
             
-            if (nameJa || nameEn) {
+            // ★修正点: IDが 'target' の場合、名前が空でも強制的に処理対象とする
+            // これにより、対象馬名未入力でも、入力済みの父母以降の情報からクロス判定が走るようになる
+            if (id === 'target' || nameJa || nameEn) { 
                 const isFictional = document.getElementById(`${id}-is-fictional`).checked;
                 const group = document.querySelector(`.horse-input-group[data-horse-id="${id}"]`);
                 const uuid = group ? group.dataset.uuid : null;
@@ -428,6 +497,22 @@ window.App.UI = {
                 } else {
                     table.classList.remove('simple-mode');
                 }
+            });
+        }
+    },
+
+    initDebugModeToggle: function() {
+        const toggle = document.getElementById('debug-mode-toggle');
+        const table = document.querySelector('.pedigree-table');
+        if(toggle && table) {
+            toggle.addEventListener('change', () => {
+                if(toggle.checked) {
+                    table.classList.add('debug-mode');
+                } else {
+                    table.classList.remove('debug-mode');
+                    table.querySelectorAll('td').forEach(td => td.style.height = '');
+                }
+                this.updateCrossList();
             });
         }
     },
@@ -574,31 +659,6 @@ window.App.UI = {
         finally { document.body.removeChild(cloneContainer); }
     },
 
-    // ★追加: トースト通知
-    showToast: function(message, duration = 3000) {
-        const container = document.getElementById('toast-container');
-        if (!container) return;
-
-        const toast = document.createElement('div');
-        toast.className = 'toast-message';
-        toast.textContent = message;
-
-        container.appendChild(toast);
-        
-        // アニメーション
-        requestAnimationFrame(() => {
-            toast.classList.add('show');
-        });
-
-        setTimeout(() => {
-            toast.classList.remove('show');
-            setTimeout(() => {
-                if(container.contains(toast)) container.removeChild(toast);
-            }, 300); // transition時間と合わせる
-        }, duration);
-    },
-
-    // ★修正: ローディング制御を分割
     setGlobalLoading: function(isLoading, title = '処理中...', message = '') {
         const overlay = document.getElementById('global-loading-overlay');
         const titleEl = document.getElementById('loading-title');

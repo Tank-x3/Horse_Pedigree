@@ -1,52 +1,56 @@
 window.App = window.App || {};
 
-// --- 血統計算ロジック ---
+// --- 血統計算ロジック (Step 0強化版: 完全データスキャン) ---
 window.App.Pedigree = {
-    /**
-     * 馬データのMapを受け取り、5代内クロスのリストを計算して返します
-     * @param {Map} formData - 入力フォームのデータ (Key: ID, Value: HorseObject)
-     * @returns {Array} クロス情報の配列
-     */
     calculateCrosses: function(formData) {
-        // 定数・Utilityの準備
-        const { ALL_IDS } = App.Consts;
-        const { generateUUID } = App.Utils;
+        // Step 0: 強力な名寄せ (ALL_IDSに依存せず、全データをスキャンする)
+        const nameKeyToUUID = new Map();
+        
+        // formData内の全ての馬エントリを走査
+        for (const [id, horse] of formData) {
+            if (!horse) continue;
+            const name = (horse.name_ja || horse.name_en || '').trim();
+            if (!name) continue;
 
-        // ★Step 0: メモリ内名寄せ
-        const uniqueMap = new Map();
-        ALL_IDS.forEach(id => {
-            const horse = formData.get(id);
-            if (!horse) return;
-            const name = horse.name_ja || horse.name_en;
-            if (!name) return;
-            const key = `${name}_${horse.birth_year || ''}`;
-            if (!uniqueMap.has(key)) {
-                // 保存前のデータはIDがない場合があるので一時IDを発行
-                const uuid = horse.id || `temp_${generateUUID()}`;
-                uniqueMap.set(key, uuid);
+            // 生年も文字列化してトリム (数値/文字列の差異やスペース混入を防止)
+            const year = (horse.birth_year || '').toString().trim();
+            
+            // 名寄せキー: 生年があれば「名前_生年」、なければ「名前」
+            const key = year ? `${name}_${year}` : name;
+
+            if (nameKeyToUUID.has(key)) {
+                // 既に同名の馬がいる場合、そのUUIDで上書き（統合）
+                horse.resolvedId = nameKeyToUUID.get(key);
+            } else {
+                // 初出の場合、自身のIDか、なければ一時IDを発行
+                const uuid = horse.id || `temp_${Math.random().toString(36).substr(2, 9)}`;
+                horse.resolvedId = uuid;
+                nameKeyToUUID.set(key, uuid);
             }
-            horse.resolvedId = uniqueMap.get(key);
-        });
+        }
 
-        // 親ID解決
-        ALL_IDS.forEach(id => {
-            const horse = formData.get(id);
-            if (!horse || !horse.resolvedId) return;
+        // 親ID解決 (全データ対象)
+        for (const [id, horse] of formData) {
+            if (!horse || !horse.resolvedId) continue;
+            
             let sId, dId;
             if (id === 'target') { sId = 's'; dId = 'd'; }
             else { sId = id + 's'; dId = id + 'd'; }
+            
             const sire = formData.get(sId);
             const dam = formData.get(dId);
             horse.resolvedSireId = sire ? sire.resolvedId : null;
             horse.resolvedDamId = dam ? dam.resolvedId : null;
-        });
+        }
 
-        // ★Step 1: 全祖先データの構築
+        // Step 1: 全祖先データの構築 (再帰探索)
         const ancestors = []; 
         const traverse = (currentId, currentPath, gen) => {
-            if (gen > 5) return;
+            if (gen > 5) return; // 5代まで
             const horse = formData.get(currentId);
+            // 名寄せされていない(データがない)場合はストップ
             if (!horse || !horse.resolvedId) return;
+            
             if (gen > 0) {
                 ancestors.push({
                     uuid: horse.resolvedId,
@@ -59,15 +63,18 @@ window.App.Pedigree = {
                 });
             }
             const nextPath = [...currentPath, horse.resolvedId];
+            
+            // 次の世代のIDキーを生成 (s->ss, s->sd)
             let sKey, dKey;
             if (currentId === 'target') { sKey='s'; dKey='d'; }
             else { sKey=currentId+'s'; dKey=currentId+'d'; }
+            
             traverse(sKey, nextPath, gen + 1);
             traverse(dKey, nextPath, gen + 1);
         };
         traverse('target', [], 0);
 
-        // ★Step 2: グループIDの付与 (Union-Find)
+        // Step 2: グループIDの付与 (全きょうだい判定)
         const uf = new Map();
         const find = (id) => {
             if (!uf.has(id)) uf.set(id, id);
@@ -104,7 +111,7 @@ window.App.Pedigree = {
             anc.groupId = find(anc.uuid);
         });
 
-        // ★Step 3: クロス判定 (一次判定)
+        // Step 3: クロス判定 (一次判定)
         ancestors.sort((a, b) => a.gen - b.gen);
         const tempValidCrossGroups = new Set();
         const groups = new Map();
@@ -118,8 +125,6 @@ window.App.Pedigree = {
 
             const viaCrossIDs = new Set();
             let unmaskedCount = 0;
-            const uniqueUUIDs = new Set(members.map(m => m.uuid));
-            const isSameHorseGroup = (uniqueUUIDs.size === 1);
 
             members.forEach(member => {
                 let foundDominantCrossId = null;
@@ -139,48 +144,77 @@ window.App.Pedigree = {
             });
 
             let isValidCross = false;
-            if (unmaskedCount >= 1) isValidCross = true;
-            else if (isSameHorseGroup && viaCrossIDs.size >= 2) isValidCross = true;
+            if (unmaskedCount >= 1) {
+                isValidCross = true;
+            } else if (viaCrossIDs.size >= 2) {
+                isValidCross = true;
+            }
 
             if (isValidCross) tempValidCrossGroups.add(groupId);
         });
 
-        // ★Step 4: 親子包含チェックによる冗長クロスの削除
+        // Step 4: 親子包含チェック (v4: 馬ごとの共通項判定)
         const finalValidCrossGroups = new Set(tempValidCrossGroups);
 
         tempValidCrossGroups.forEach(groupIdA => {
-            const membersA = groups.get(groupIdA);
+            const allNodes = groups.get(groupIdA);
             
-            let isRedundant = true;
-            let commonChildGroupId = null;
-            let firstLoop = true;
+            // ノードを「馬(UUID)」ごとに分類
+            const membersByUuid = new Map();
+            allNodes.forEach(node => {
+                if (!membersByUuid.has(node.uuid)) membersByUuid.set(node.uuid, []);
+                membersByUuid.get(node.uuid).push(node);
+            });
 
-            for (const memberA of membersA) {
-                if (memberA.path.length === 0) {
-                    isRedundant = false;
-                    break;
-                }
-                
-                const childUuid = memberA.path[memberA.path.length - 1];
-                const childGroupId = find(childUuid);
+            let isGroupRedundant = true;
 
-                if (firstLoop) {
-                    commonChildGroupId = childGroupId;
-                    firstLoop = false;
-                } else {
-                    if (commonChildGroupId !== childGroupId) {
-                        isRedundant = false;
+            for (const [uuid, nodes] of membersByUuid) {
+                // この馬(UUID)の「個人的な共通カバークロス」を探す
+                let personalIntersection = null;
+
+                for (const node of nodes) {
+                    const pathCovers = new Set();
+                    for (const pathUuid of node.path) {
+                        const pathGroupId = find(pathUuid);
+                        if (pathGroupId !== groupIdA && tempValidCrossGroups.has(pathGroupId)) {
+                            pathCovers.add(pathGroupId);
+                        }
+                    }
+
+                    // カバーなしルートがあれば、その馬は独立
+                    if (pathCovers.size === 0) {
+                        personalIntersection = new Set();
+                        break;
+                    }
+
+                    if (personalIntersection === null) {
+                        personalIntersection = pathCovers;
+                    } else {
+                        // 積集合
+                        const nextIntersection = new Set();
+                        for (const g of personalIntersection) {
+                            if (pathCovers.has(g)) nextIntersection.add(g);
+                        }
+                        personalIntersection = nextIntersection;
+                    }
+
+                    if (personalIntersection.size === 0) {
                         break;
                     }
                 }
+
+                if (personalIntersection === null || personalIntersection.size === 0) {
+                    isGroupRedundant = false;
+                    break;
+                }
             }
 
-            if (isRedundant) {
+            if (isGroupRedundant) {
                 finalValidCrossGroups.delete(groupIdA);
             }
         });
 
-        // ★Step 5: 結果整形
+        // Step 5: 結果整形
         const crossResults = [];
         groups.forEach((members, groupId) => {
             if (finalValidCrossGroups.has(groupId)) {
@@ -198,6 +232,11 @@ window.App.Pedigree = {
                     ids: members.map(m => m.htmlId)
                 });
             }
+        });
+        
+        crossResults.sort((a, b) => {
+            if (b.pct !== a.pct) return b.pct - a.pct;
+            return a.name.localeCompare(b.name);
         });
 
         return crossResults;
