@@ -136,7 +136,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const hasInput = ALL_IDS.some(id => {
             const ja = document.getElementById(`${id}-name-ja`);
             const en = document.getElementById(`${id}-name-en`);
-            return (ja && ja.value.trim()) || (en && en.value.trim());
+            const year = document.getElementById(`${id}-birth-year`);
+            // ★修正: 名前だけでなく生年などの入力も「入力あり」とみなす
+            return (ja && ja.value.trim()) || (en && en.value.trim()) || (year && year.value.trim());
         });
         if (hasInput && !App.UI.checkRequiredFields()) return;
 
@@ -164,6 +166,10 @@ document.addEventListener('DOMContentLoaded', () => {
             let dbHorse = null;
             if (!targetUUID || !state.db.has(targetUUID)) {
                 for (const [existingId, existingHorse] of state.db.entries()) {
+                    // 名前がない馬は名寄せ検索の対象外
+                    const formName = formHorse.name_ja || formHorse.name_en;
+                    if (!formName) continue;
+
                     if (!formHorse.is_fictional && !existingHorse.is_fictional) {
                         if (existingHorse.name_en && formHorse.name_en &&
                             existingHorse.name_en.toLowerCase().trim() === formHorse.name_en.toLowerCase().trim() &&
@@ -247,17 +253,22 @@ document.addEventListener('DOMContentLoaded', () => {
     function saveDataDirectly(formData) {
         const nameMap = new Map();
 
+        // ★修正: 名前がない馬もスキップせず、必ずIDを発行する
         for (const horse of formData.values()) {
             const name = horse.name_ja || horse.name_en;
-            if (!name) continue;
-            const key = `${name}_${horse.birth_year || ''}`;
-
-            if (nameMap.has(key)) {
-                horse.id = nameMap.get(key);
-            } 
-            else {
+            
+            if (name) {
+                // 名前がある場合のみ、同一保存バッチ内でのID共有（名寄せ）を行う
+                const key = `${name}_${horse.birth_year || ''}`;
+                if (nameMap.has(key)) {
+                    horse.id = nameMap.get(key);
+                } else {
+                    if (!horse.id) horse.id = generateUUID();
+                    nameMap.set(key, horse.id);
+                }
+            } else {
+                // 名前がない場合も、IDがなければ発行する（最重要修正）
                 if (!horse.id) horse.id = generateUUID();
-                nameMap.set(key, horse.id);
             }
         }
 
@@ -279,6 +290,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const newDb = new Map(state.db);
         for (const horse of formData.values()) {
+            // ★防御的記述: 万が一IDがない場合はここでも補填（念には念を）
+            if (!horse.id) horse.id = generateUUID();
+
             if (newDb.has(horse.id)) {
                 Object.assign(newDb.get(horse.id), horse);
             } else {
@@ -309,14 +323,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         for (const horse of formData.values()) {
             const name = horse.name_ja || horse.name_en;
-            if (!name) continue;
-            const key = `${name}_${horse.birth_year || ''}`;
-
-            if (nameMap.has(key)) {
-                horse.id = nameMap.get(key);
+            // ★修正: ローカル保存時も名前なしを許容してID発行
+            if (name) {
+                const key = `${name}_${horse.birth_year || ''}`;
+                if (nameMap.has(key)) {
+                    horse.id = nameMap.get(key);
+                } else {
+                    if (!horse.id) horse.id = generateUUID();
+                    nameMap.set(key, horse.id);
+                }
             } else {
                 if (!horse.id) horse.id = generateUUID();
-                nameMap.set(key, horse.id);
             }
         }
 

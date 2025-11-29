@@ -9,15 +9,12 @@ window.App.UI = {
         this.initAutocomplete();
         this.initInputValidation();
         this.initSimpleModeToggle();
-        // 削除: this.initDebugModeToggle();
     },
 
     initDOM: function() {
         this.createFormGroups();
         this.createPreviewTable();
     },
-
-    // ... createFormGroups は変更なし ...
 
     createFormGroups: function() {
         const { ALL_IDS, GENERATION_LABELS } = App.Consts;
@@ -121,7 +118,6 @@ window.App.UI = {
 
                 td.onclick = (e) => this.handleCellClick(cell.id);
                 
-                // 修正: debug-info-overlay を削除
                 td.innerHTML = `
                     <div class="pedigree-cell-content">
                         <span class="horse-name" id="preview-${cell.id}-name">&nbsp;</span>
@@ -140,7 +136,6 @@ window.App.UI = {
         });
     },
 
-    // ... initGenerationSelector, handleGenerationChange, initFormPreviewSync は変更なし ...
     initGenerationSelector: function() {
         const selectors = document.querySelectorAll('input[name="generation"]');
         if (selectors.length === 0) return;
@@ -184,7 +179,6 @@ window.App.UI = {
     },
 
     updatePreview: function(id) {
-        // ... (内容変更なし) ...
         const ja = document.getElementById(`${id}-name-ja`)?.value.trim();
         const en = document.getElementById(`${id}-name-en`)?.value.trim();
         const year = document.getElementById(`${id}-birth-year`)?.value.trim();
@@ -239,12 +233,7 @@ window.App.UI = {
         const result = App.Pedigree.calculateCrosses(formData);
         
         this.renderCrossList(result.list);
-        // 削除: this.renderDebugInfo(result.debugMap);
     },
-
-    // 削除: renderDebugInfo 関数全体
-    
-    // ... renderCrossList, initSimpleModeToggle, handleCellClick などは変更なし ...
 
     renderCrossList: function(crosses) {
         const container = document.getElementById('cross-list-container');
@@ -287,8 +276,6 @@ window.App.UI = {
         }
     },
 
-    // 削除: initDebugModeToggle 関数全体
-
     handleCellClick: function(horseId) {
         const formTabBtn = document.querySelector('.tab-button[data-tab="form"]');
         if (formTabBtn) {
@@ -310,7 +297,6 @@ window.App.UI = {
         }
     },
 
-    // ... 以降、getFormDataAsMap 以下は変更なし ...
     getFormDataAsMap: function() {
         const { ALL_IDS } = App.Consts;
         const formData = new Map();
@@ -319,7 +305,8 @@ window.App.UI = {
             const nameEn = document.getElementById(`${id}-name-en`).value.trim();
             const year = document.getElementById(`${id}-birth-year`).value.trim();
             
-            if (id === 'target' || nameJa || nameEn) { 
+            // ★修正: 生年のみ入力など、名前以外がある場合も収集対象とする
+            if (id === 'target' || nameJa || nameEn || year) { 
                 const isFictional = document.getElementById(`${id}-is-fictional`).checked;
                 const group = document.querySelector(`.horse-input-group[data-horse-id="${id}"]`);
                 const uuid = group ? group.dataset.uuid : null;
@@ -439,7 +426,6 @@ window.App.UI = {
         });
     },
     
-    // ... initAutocomplete, showSuggestions, populateFormRecursively は変更なし ...
     initAutocomplete: function() {
         const { ALL_IDS } = App.Consts;
         ALL_IDS.forEach(id => {
@@ -491,46 +477,103 @@ window.App.UI = {
         });
     },
 
+    // ★修正: 親データがない場合にフォームをクリアする処理を追加
     populateFormRecursively: function(horseId, idPrefix) {
         if (!App.State || !App.State.db) return;
         const horse = App.State.db.get(horseId);
         if (!horse) return;
+        
+        // --- 1. 現世代の入力 ---
         const ja = document.getElementById(`${idPrefix}-name-ja`);
         const en = document.getElementById(`${idPrefix}-name-en`);
         const yr = document.getElementById(`${idPrefix}-birth-year`);
         const fict = document.getElementById(`${idPrefix}-is-fictional`);
+        
         const group = document.querySelector(`.horse-input-group[data-horse-id="${idPrefix}"]`);
         if (group) group.dataset.uuid = horseId;
+
+        // 値がない場合は空文字をセットして「ゴミ」を消す
         if(ja) ja.value = horse.name_ja || '';
         if(en) en.value = horse.name_en || '';
         if(yr) yr.value = horse.birth_year || '';
         if(fict) fict.checked = horse.is_fictional;
+
         const country = document.getElementById(`${idPrefix}-country`);
+        const color = document.getElementById(`${idPrefix}-color`);
+        const family = document.getElementById(`${idPrefix}-family-no`);
+        const lineage = document.getElementById(`${idPrefix}-lineage`);
+
         if(country) country.value = horse.country || '';
-        document.getElementById(`${idPrefix}-color`).value = horse.color || '';
-        document.getElementById(`${idPrefix}-family-no`).value = horse.family_no || '';
-        document.getElementById(`${idPrefix}-lineage`).value = horse.lineage || '';
+        if(color) color.value = horse.color || '';
+        if(family) family.value = horse.family_no || '';
+        if(lineage) lineage.value = horse.lineage || '';
+        
+        // 入力イベント発火（プレビュー更新用）
         if(ja) ja.dispatchEvent(new Event('input', { bubbles: true }));
+
+        // --- 2. 親世代への再帰処理 ---
         let sirePrefix, damPrefix;
         if (idPrefix === 'target') { sirePrefix = 's'; damPrefix = 'd'; }
         else { sirePrefix = idPrefix + 's'; damPrefix = idPrefix + 'd'; }
+        
+        // 5代以上は再帰しない
         if (sirePrefix.length > 5) return;
+
+        // 父の処理
         if (horse.sire_id) {
             this.populateFormRecursively(horse.sire_id, sirePrefix);
         } else if (horse.is_fictional && horse.sire_name) {
+            // 架空馬で親名だけある場合
+            this.clearFormRecursively(sirePrefix); // 一旦クリア
             const sGroup = document.querySelector(`.horse-input-group[data-horse-id="${sirePrefix}"]`);
             if(sGroup) delete sGroup.dataset.uuid;
             const sJa = document.getElementById(`${sirePrefix}-name-ja`);
             if(sJa) { sJa.value = horse.sire_name; sJa.dispatchEvent(new Event('input', { bubbles: true })); }
+        } else {
+            // ★重要: 親がいない場合は、フォーム上の古いデータを再帰的に消す
+            this.clearFormRecursively(sirePrefix);
         }
+
+        // 母の処理
         if (horse.dam_id) {
             this.populateFormRecursively(horse.dam_id, damPrefix);
         } else if (horse.is_fictional && horse.dam_name) {
+            this.clearFormRecursively(damPrefix); // 一旦クリア
             const dGroup = document.querySelector(`.horse-input-group[data-horse-id="${damPrefix}"]`);
             if(dGroup) delete dGroup.dataset.uuid;
             const dJa = document.getElementById(`${damPrefix}-name-ja`);
             if(dJa) { dJa.value = horse.dam_name; dJa.dispatchEvent(new Event('input', { bubbles: true })); }
+        } else {
+            // ★重要: 親がいない場合は、フォーム上の古いデータを再帰的に消す
+            this.clearFormRecursively(damPrefix);
         }
+    },
+
+    // ★追加: 指定ID以下のフォームを再帰的にクリアするヘルパー関数
+    clearFormRecursively: function(idPrefix) {
+        if (idPrefix.length > 5) return;
+
+        // 現世代のクリア
+        const inputs = [
+            `${idPrefix}-name-ja`, `${idPrefix}-name-en`, `${idPrefix}-birth-year`,
+            `${idPrefix}-country`, `${idPrefix}-color`, `${idPrefix}-family-no`, `${idPrefix}-lineage`
+        ];
+        inputs.forEach(id => {
+            const el = document.getElementById(id);
+            if(el) el.value = '';
+        });
+        const fict = document.getElementById(`${idPrefix}-is-fictional`);
+        if(fict) fict.checked = false;
+
+        const group = document.querySelector(`.horse-input-group[data-horse-id="${idPrefix}"]`);
+        if (group) delete group.dataset.uuid;
+
+        // プレビュー反映
+        this.updatePreview(idPrefix);
+
+        // 子世代へ
+        this.clearFormRecursively(idPrefix + 's');
+        this.clearFormRecursively(idPrefix + 'd');
     },
 
     handleSaveImage: async function() {
@@ -639,7 +682,6 @@ window.App.UI = {
         document.getElementById('save-confirm-modal-overlay').classList.remove('hidden');
     },
 
-    // --- Toast通知（残す）---
     showToast: function(message, duration = 3000) {
         const container = document.getElementById('toast-container');
         if (!container) return;
@@ -650,7 +692,6 @@ window.App.UI = {
 
         container.appendChild(toast);
         
-        // アニメーション
         requestAnimationFrame(() => {
             toast.classList.add('show');
         });
