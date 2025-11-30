@@ -34,8 +34,28 @@ window.App.UI = {
             group.dataset.horseId = id;
 
             const header = document.createElement(labelInfo.tag);
-            header.innerHTML = `<span>${labelInfo.label}</span> <label class="fictional-check-label"><input type="checkbox" id="${id}-is-fictional"> 架空馬</label>`;
+            // ★変更: クリアボタンをSVGアイコン化、通知エリアを独立
+            header.innerHTML = `
+                <div style="display:flex; align-items:center;">
+                    <span>${labelInfo.label}</span>
+                    <button type="button" class="clear-ancestor-btn" data-target-id="${id}">
+                        <svg viewBox="0 0 24 24"><path d="M12.6,16.4l-4.2-4.2c-1.6,1.6-4.2,1.6-5.8,0c-1.6-1.6-1.6-4.2,0-5.8l3.2-3.2c1.6-1.6,4.2-1.6,5.8,0l0.7,0.7 L10.9,5.3L10.2,4.6c-0.8-0.8-2.1-0.8-2.9,0L4.1,7.8c-0.8,0.8-0.8,2.1,0,2.9c0.8,0.8,2.1,0.8,2.9,0l4.2,4.2L12.6,16.4z M19.9,4.1 c0.8,0.8,0.8,2.1,0,2.9l-4.2,4.2l-1.4-1.4l4.2-4.2c0.8-0.8,2.1-0.8,2.9,0c0.8,0.8,0.8,2.1,0,2.9l-3.2,3.2c-0.8,0.8-2.1,0.8-2.9,0 l-0.7-0.7l-1.4,1.4l0.7,0.7c1.6,1.6,4.2,1.6,5.8,0l3.2-3.2C21.5,8.3,21.5,5.7,19.9,4.1z M3.6,21.9L2.1,20.4l18.4-18.4l1.4,1.4 L3.6,21.9z"/></svg>
+                        <span style="font-size:0.75em; margin-left:2px; vertical-align:middle;">この馬を含む系統をクリア</span>
+                    </button>
+                    <label class="fictional-check-label" style="margin-left:auto;"><input type="checkbox" id="${id}-is-fictional"> 架空馬</label>
+                </div>
+            `;
             group.appendChild(header);
+
+            // ダミー馬通知エリア（独立行）
+            const dummyNotif = document.createElement('div');
+            dummyNotif.id = `${id}-dummy-notification`;
+            dummyNotif.className = 'dummy-notification-area';
+            group.appendChild(dummyNotif);
+            
+            // クリアボタンのイベント登録
+            const clearBtn = header.querySelector('.clear-ancestor-btn');
+            if(clearBtn) clearBtn.onclick = (e) => this.handleClearAncestors(id);
 
             const basicRow = document.createElement('div');
             basicRow.className = 'input-row autocomplete-wrapper';
@@ -185,6 +205,7 @@ window.App.UI = {
                         // 動作追跡のため簡易的に記録する（大量になるので注意）
                         // App.Logger.add('UI', `Input changed: ${inId}`, { val: el.value, checked: el.checked });
                         this.updatePreview(id);
+                        this.updateDummyIndicator(); // ★追加
                     });
                 }
             });
@@ -202,8 +223,13 @@ window.App.UI = {
         const color = document.getElementById(`${id}-color`)?.value.trim();
         const lineage = document.getElementById(`${id}-lineage`)?.value.trim();
         
+        // ★修正: ダミー馬名はプレビューに出さない
         let dispName = ja || en || '&nbsp;';
-        if ((ja || en) && isFict) dispName = `【${dispName}】`;
+        if (this.isDummyHorseName(ja)) {
+            dispName = '&nbsp;';
+        } else if ((ja || en) && isFict) {
+            dispName = `【${dispName}】`;
+        }
 
         if (id === 'target') {
             const title = document.getElementById('preview-title');
@@ -377,7 +403,7 @@ window.App.UI = {
                 // プログラムによる入力は無視
                 if (e && !e.isTrusted) return;
 
-                // ★追加: 「馬名修正モード」がONなら、IDをクリアせずに維持する（修正を許可）
+                // ★追加: 「馬名修正モード」がONなら、IDをクリアせずに維持する
                 const allowRename = document.getElementById(`${id}-allow-rename`)?.checked;
                 if (allowRename) {
                     if (window.App && window.App.Logger) {
@@ -388,8 +414,20 @@ window.App.UI = {
 
                 const group = document.querySelector(`.horse-input-group[data-horse-id="${id}"]`);
                 if (group && group.dataset.uuid) {
+                    // ★追加: 紐付いているのが「ダミー馬」なら、IDを維持する（実在馬への昇格を許可）
+                    const currentUUID = group.dataset.uuid;
+                    if (window.App && window.App.State && window.App.State.db) {
+                        const dbHorse = window.App.State.db.get(currentUUID);
+                        if (dbHorse && App.UI.isDummyHorseName(dbHorse.name_ja)) {
+                            if (window.App.Logger) {
+                                window.App.Logger.add('UI', `UUID Kept (Promoting Dummy)`, { id, uuid: currentUUID });
+                            }
+                            return; // 削除せずに終了
+                        }
+                    }
+
+                    // それ以外（通常の実在馬）なら、安全のためリンクを切る
                     delete group.dataset.uuid;
-                    // デバッグログ出力
                     if (window.App && window.App.Logger) {
                         window.App.Logger.add('UI', `UUID Cleared by input (User Action)`, { id });
                     }
@@ -518,7 +556,12 @@ window.App.UI = {
             let label = horse.name_ja || '';
             if (horse.name_en) label += ` (${horse.name_en})`;
             if (horse.birth_year) label += ` ${horse.birth_year}`;
+            // ★変更: ダミー馬の場合は整形した名前を表示
+            if (this.isDummyHorseName(horse.name_ja)) {
+                label = this.formatDummyName(horse.name_ja);
+            }
             item.textContent = label;
+            
             item.addEventListener('click', () => {
                 // ★ログ追加: オートコンプリート選択
                 App.Logger.add('UI', 'Autocomplete Selected', { idPrefix, horseId: horse.id, name: horse.name_ja || horse.name_en });
@@ -555,7 +598,15 @@ window.App.UI = {
         }
 
         // 値がない場合は空文字をセットして「ゴミ」を消す
-        if(ja) ja.value = horse.name_ja || '';
+        // ★修正: ダミー馬の場合は名前を表示せず、空欄に見せる
+        if (this.isDummyHorseName(horse.name_ja)) {
+            if(ja) ja.value = '';
+            // ダミー馬であることを示すために、UUIDは保持するが画面は空
+            // バッジを出しても良いが、updateDummyIndicatorで自動判定されるので任せる
+        } else {
+            if(ja) ja.value = horse.name_ja || '';
+        }
+        
         if(en) en.value = horse.name_en || '';
         if(yr) yr.value = horse.birth_year || '';
         if(fict) fict.checked = horse.is_fictional;
@@ -763,7 +814,7 @@ window.App.UI = {
             toast.classList.add('show');
         });
 
-setTimeout(() => {
+        setTimeout(() => {
             toast.classList.remove('show');
             setTimeout(() => {
                 if(container.contains(toast)) container.removeChild(toast);
@@ -771,7 +822,7 @@ setTimeout(() => {
         }, duration);
     },
 
-    // --- 追加: フォームリセット機能 ---
+    // --- フォームリセット機能 ---
     resetForm: function() {
         if (!confirm("入力内容をすべて消去し、リセットしますか？\n（保存していない入力内容は失われます）")) return;
 
@@ -812,9 +863,139 @@ setTimeout(() => {
         // 5. 状態のリセット
         if (window.App.State) window.App.State.isDirty = false;
 
+        // ★追加: ダミー通知のクリア
+        document.querySelectorAll('.dummy-notification-area').forEach(el => {
+            el.classList.remove('visible');
+            el.innerHTML = '';
+        });
+        document.querySelectorAll('.dummy-badge').forEach(el => el.classList.remove('visible'));
+
         this.showToast("フォームをリセットしました");
         
         // ログ出力
         if (window.App.Logger) window.App.Logger.add('ACTION', 'Form Reset Executed');
+    },
+
+    // --- 系統クリア機能 ---
+    handleClearAncestors: function(startId) {
+        if (!confirm(`【${startId.toUpperCase()}】\nこの馬と、繋がっている先祖のデータをすべて消去しますか？`)) return;
+        this.clearFormRecursively(startId);
+        this.updateDummyIndicator();
+    },
+
+    // --- ダミー生成インジケーターの更新 ---
+    updateDummyIndicator: function() {
+        const { ALL_IDS } = App.Consts;
+        const formData = this.getFormDataAsMap();
+
+        ALL_IDS.forEach(id => {
+            const notifArea = document.getElementById(`${id}-dummy-notification`);
+            if (!notifArea) return;
+            notifArea.classList.remove('visible');
+            notifArea.innerHTML = '';
+
+            // 1. 既にダミー馬が読み込まれている場合
+            const group = document.querySelector(`.horse-input-group[data-horse-id="${id}"]`);
+            if (group && group.dataset.uuid && window.App.State.db) {
+                const dbHorse = window.App.State.db.get(group.dataset.uuid);
+                if (dbHorse && this.isDummyHorseName(dbHorse.name_ja)) {
+                    const prettyName = this.formatDummyName(dbHorse.name_ja);
+                    notifArea.innerHTML = `✅ <strong>${prettyName}</strong> として登録済みです。<br>（名前を入力すると実在馬として上書き登録されます）`;
+                    notifArea.classList.add('visible');
+                    return;
+                }
+            }
+
+            // 2. 空欄による新規補完判定
+            // 自身が入力済みなら対象外
+            const self = formData.get(id);
+            const hasSelfName = self && (self.name_ja || self.name_en);
+            if (hasSelfName) return;
+
+            if (id === 'target') return;
+
+            // 対象馬(target)が架空馬かどうかチェック
+            const targetHorse = formData.get('target');
+            if (!targetHorse || !targetHorse.is_fictional) return;
+
+            // ★修正: 直下の親だけでなく、「その先にデータがあるか」を再帰チェック
+            if (this.hasAncestorData(id, formData)) {
+                // 補完対象確定: 名前を予測して表示
+                let childId = (id.length === 1) ? 'target' : id.substring(0, id.length - 1);
+                const child = formData.get(childId);
+                
+                let childName = child ? (child.name_ja || child.name_en) : '';
+                if (!childName) childName = '未登録馬';
+                
+                if (this.isDummyHorseName(childName)) {
+                    childName = this.formatDummyName(childName).replace(/[（）()]/g, '');
+                }
+                
+                const suffix = (id.endsWith('s')) ? 'の父' : 'の母';
+                const predictedName = `（${childName}${suffix}）`;
+                
+                notifArea.innerHTML = `⚠️ 未命名／名称不明の馬 <strong>${predictedName}</strong> として登録されます。`;
+                notifArea.classList.add('visible');
+            }
+        });
+    },
+
+    // ★追加: 指定したIDより先の系統（父母、祖父母...）にデータが存在するかチェック
+    hasAncestorData: function(id, formData) {
+        // 5代より先はチェックしない
+        if (id.length >= 5) return false;
+
+        const sireId = id + 's';
+        const damId = id + 'd';
+        
+        // 1. 直下の親がいるか？
+        const sire = formData.get(sireId);
+        const dam = formData.get(damId);
+        const hasSire = sire && (sire.name_ja || sire.name_en);
+        const hasDam = dam && (dam.name_ja || dam.name_en);
+        
+        if (hasSire || hasDam) return true;
+
+        // 2. いなければ、さらにその先を再帰チェック
+        return this.hasAncestorData(sireId, formData) || this.hasAncestorData(damId, formData);
+    },
+    
+    // --- 追加: ダミー馬判定用ユーティリティ ---
+    isDummyHorseName: function(name) {
+        return name && name.startsWith('(未登録:') && (name.endsWith(')') || name.endsWith('）'));
+    },
+
+    // --- 追加: ダミー馬名の整形表示 (未登録: (未登録: Xの母)の父) -> (Xの母父) ---
+    formatDummyName: function(name) {
+        if (!this.isDummyHorseName(name)) return name;
+        
+        let current = name;
+        const suffixes = [];
+        const layerRegex = /^\(未登録:\s*(.+)(の[父母])\)$/; // 入れ子を剥がす正規表現
+        
+        // 再帰的に剥がしていく
+        while (true) {
+            const match = current.match(layerRegex);
+            if (match) {
+                current = match[1]; // 中身 (例: (未登録: Xの母))
+                suffixes.unshift(match[2]); // 接尾辞 (例: の父)
+            } else {
+                break;
+            }
+        }
+        
+        // 接尾辞を連結 (の母 + の父 -> の母父)
+        let suffixStr = "";
+        if (suffixes.length > 0) {
+            suffixStr = suffixes[0]; // 最初だけ「の」を残す
+            for (let i = 1; i < suffixes.length; i++) {
+                suffixStr += suffixes[i].replace('の', '');
+            }
+        }
+        
+        // currentには最終的にベースとなる馬名(X)が残る
+        // もしベース名自体がダミー形式で単純なパターンに合致しなかった場合でも、
+        // 可能な限り見やすく整形して返す
+        return `（${current}${suffixStr}）`;
     }
 };

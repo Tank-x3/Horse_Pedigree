@@ -170,15 +170,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         const formData = App.UI.getFormDataAsMap();
+        
+        // 欠損家系の自動補完（ダミー馬生成）を実行
+        fillMissingAncestors(formData);
+
         const conflicts = [];
         
-        // ★ログ追加: フォームデータ数
         App.Logger.add('LOGIC', 'Form data collected', { count: formData.size });
 
         for (const [tempId, formHorse] of formData.entries()) {
             let targetUUID = formHorse.id;
             let dbHorse = null;
-            let matchReason = ''; // ★ログ用
+            let matchReason = ''; 
 
             if (!targetUUID || !state.db.has(targetUUID)) {
                 // IDがない場合の名寄せロジック
@@ -187,7 +190,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!formName) continue;
 
                     if (!formHorse.is_fictional && !existingHorse.is_fictional) {
-                        // 実在馬: 欧字名一致 & 生年一致
                         if (existingHorse.name_en && formHorse.name_en &&
                             existingHorse.name_en.toLowerCase().trim() === formHorse.name_en.toLowerCase().trim() &&
                             String(existingHorse.birth_year) === String(formHorse.birth_year)) {
@@ -195,9 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             matchReason = 'RealHorse (NameEN + Year)';
                             break;
                         }
-                    // ★修正: カナ名が入力されている場合のみ判定する（空文字同士の一致を排除）
                     } else if (formHorse.name_ja && existingHorse.name_ja === formHorse.name_ja && String(existingHorse.birth_year) === String(formHorse.birth_year)) {
-                        // 架空馬など: カナ名一致 & 生年一致
                         targetUUID = existingId; dbHorse = existingHorse; 
                         matchReason = 'Fictional/Ja (NameJA + Year)';
                         break;
@@ -222,13 +222,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 if (diffs.length > 0) {
-                    formHorse.id = targetUUID; 
-                    conflicts.push({ horse: formHorse, dbHorse, diffs });
-                    // ★重要ログ: なぜ競合判定されたか
-                    App.Logger.add('WARN', 'Conflict Detected', { 
-                        tempId, targetUUID, matchReason, 
-                        formName: formHorse.name_ja, dbName: dbHorse.name_ja, diffs 
-                    });
+                    // ★追加: ダミー馬からの昇格判定（自動解決）
+                    const isDbDummy = App.UI.isDummyHorseName(dbHorse.name_ja);
+                    const isFormDummy = App.UI.isDummyHorseName(formHorse.name_ja);
+                    
+                    if (isDbDummy && !isFormDummy) {
+                        // DBがダミーで、入力が実名なら、問答無用で更新（昇格）
+                        Object.assign(dbHorse, formHorse);
+                        if (formHorse.id && formHorse.id !== targetUUID) {
+                            state.db.delete(formHorse.id); state.db.set(targetUUID, dbHorse);
+                        }
+                        App.Logger.add('ACTION', 'Auto-Promoted Dummy Horse', { uuid: targetUUID, newName: formHorse.name_ja });
+                    } else {
+                        // それ以外は通常の競合として扱う
+                        formHorse.id = targetUUID; 
+                        conflicts.push({ horse: formHorse, dbHorse, diffs });
+                        App.Logger.add('WARN', 'Conflict Detected', { 
+                            tempId, targetUUID, matchReason, 
+                            formName: formHorse.name_ja, dbName: dbHorse.name_ja, diffs 
+                        });
+                    }
                 } else {
                     Object.assign(dbHorse, formHorse);
                     if (formHorse.id && formHorse.id !== targetUUID) {
@@ -281,6 +294,86 @@ document.addEventListener('DOMContentLoaded', () => {
         saveDataDirectly(state.pendingSaveData);
         document.getElementById('save-confirm-modal-overlay').classList.add('hidden');
         state.pendingSaveData = null;
+    }
+    
+    // --- ダミーデータ補完ロジック ---
+    function fillMissingAncestors(formData) {
+        const { ANCESTOR_IDS } = App.Consts;
+        
+        // 既存のダミー馬を検索するためのマップを作成（再利用・重複防止）
+        const existingDummyMap = new Map(); 
+        state.db.forEach(horse => {
+            if (horse.is_fictional && App.UI.isDummyHorseName(horse.name_ja)) {
+                existingDummyMap.set(horse.name_ja, horse.id);
+            }
+        });
+
+        // ★修正: 浅い順（s, d -> ss...）で処理する。
+        // ただし、「自分より深い場所にデータがあるか」を先読みして判定する。
+        ANCESTOR_IDS.forEach(id => {
+            const horse = formData.get(id);
+            // 既に名前がある場合はスキップ
+            if (horse && (horse.name_ja || horse.name_en)) return;
+
+            // 1. 対象馬(Target)が架空馬であること
+            const target = formData.get('target');
+            if (!target || !target.is_fictional) return;
+
+            // 2. 「自分より先の系統」にデータが存在するかチェック
+            // 例: id='s' の場合、'ss', 'sd', 'sss'... のいずれかに名前が入っていれば補完が必要
+            const hasDeepAncestor = Array.from(formData.keys()).some(key => {
+                // keyがidで始まり、かつidより長い（＝idの子孫である）
+                // かつ、そのデータに名前がある
+                if (!key.startsWith(id) || key === id) return false;
+                const h = formData.get(key);
+                return h && (h.name_ja || h.name_en);
+            });
+
+            if (hasDeepAncestor) {
+                // ★補完対象確定
+                // 子（child）を取得（浅い順なので、子は必ず処理済みorTargetであり、存在する）
+                let childId = (id.length === 1) ? 'target' : id.substring(0, id.length - 1);
+                const child = formData.get(childId);
+                
+                let childName = child ? (child.name_ja || child.name_en) : '';
+                if (!childName) childName = '未登録馬';
+
+                // 子がダミーなら、整形名を利用（例: (Xの母)）
+                if (App.UI.isDummyHorseName(childName)) {
+                    childName = App.UI.formatDummyName(childName).replace(/[（）()]/g, '');
+                }
+                
+                const suffix = (id.endsWith('s')) ? 'の父' : 'の母';
+                const dummyName = `(未登録: ${childName}${suffix})`;
+
+                // UUIDの決定（再利用 or 新規）
+                let uuid = null;
+                if (existingDummyMap.has(dummyName)) {
+                    uuid = existingDummyMap.get(dummyName);
+                    App.Logger.add('LOGIC', 'Reusing Dummy UUID', { name: dummyName, uuid });
+                } else {
+                    if (horse && horse.id) {
+                        uuid = horse.id;
+                    } else {
+                        uuid = generateUUID();
+                    }
+                    existingDummyMap.set(dummyName, uuid);
+                    App.Logger.add('LOGIC', 'Creating New Dummy', { name: dummyName, uuid });
+                }
+
+                // フォームデータに注入
+                const dummyHorse = {
+                    id: uuid,
+                    name_ja: dummyName,
+                    name_en: '',
+                    birth_year: '',
+                    is_fictional: true,
+                    country: '', color: '', family_no: '', lineage: '',
+                    sire_name: '', dam_name: '' 
+                };
+                formData.set(id, dummyHorse);
+            }
+        });
     }
 
     function saveDataDirectly(formData) {
@@ -335,6 +428,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 Object.assign(newDb.get(horse.id), horse);
             } else {
                 newDb.set(horse.id, horse);
+            }
+        }
+
+        // ★追加: 確定したIDをDOMに書き戻す (連続保存時の多重登録防止)
+        for (const [id, horse] of formData.entries()) {
+            if (horse.id) {
+                const group = document.querySelector(`.horse-input-group[data-horse-id="${id}"]`);
+                if (group) group.dataset.uuid = horse.id;
             }
         }
 
