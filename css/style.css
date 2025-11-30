@@ -300,3 +300,20 @@ body {
 .pedigree-table.simple-mode .pedigree-cell[data-col="5"] .horse-name { 
     font-size: 1.0em; line-height: 1.2; white-space: normal;
 }
+
+/* リセットボタン */
+.reset-btn {
+    background-color: #fff;
+    border: 1px solid #ccc;
+    padding: 5px 10px;
+    font-size: 0.85em;
+    cursor: pointer;
+    color: #555;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+.reset-btn:hover {
+    background-color: #fff0f0;
+    color: #d9534f;
+    border-color: #d9534f;
+}

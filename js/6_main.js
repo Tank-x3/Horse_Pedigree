@@ -54,11 +54,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const cancelSaveBtn = document.getElementById('cancel-save-btn');
         const execSaveBtn = document.getElementById('execute-save-btn');
         const logBtn = document.getElementById('download-debug-log');
+        const resetBtn = document.getElementById('reset-form-btn'); // ★追加
 
         if(loadBtn) loadBtn.onclick = handleLoadDB;
         if(saveLocalBtn) saveLocalBtn.onclick = handleSaveLocal;
         if(saveBtn) saveBtn.onclick = handleSaveDBRequest;
         if(imgBtn) imgBtn.onclick = App.UI.handleSaveImage.bind(App.UI);
+        if(resetBtn) resetBtn.onclick = App.UI.resetForm.bind(App.UI); // ★追加
         
         // ★修正: デバッグモード時のみボタンを表示・有効化
         if(logBtn) {

@@ -763,11 +763,58 @@ window.App.UI = {
             toast.classList.add('show');
         });
 
-        setTimeout(() => {
+setTimeout(() => {
             toast.classList.remove('show');
             setTimeout(() => {
                 if(container.contains(toast)) container.removeChild(toast);
             }, 300);
         }, duration);
+    },
+
+    // --- 追加: フォームリセット機能 ---
+    resetForm: function() {
+        if (!confirm("入力内容をすべて消去し、リセットしますか？\n（保存していない入力内容は失われます）")) return;
+
+        // 1. 全入力フィールドのクリア
+        const inputs = document.querySelectorAll('.horse-input-group input');
+        inputs.forEach(input => {
+            if (input.type === 'checkbox') {
+                input.checked = false; // 架空馬フラグ、修正モードなどもOFF
+            } else {
+                input.value = '';
+            }
+        });
+
+        // 2. プレースホルダーのリセット（架空馬チェックOFFに伴う対応）
+        const { ALL_IDS } = App.Consts;
+        ALL_IDS.forEach(id => {
+            const ja = document.getElementById(`${id}-name-ja`);
+            const en = document.getElementById(`${id}-name-en`);
+            const check = document.getElementById(`${id}-is-fictional`);
+            if (ja && en && check) this.updatePlaceholder(check, ja, en);
+            
+            // エラー表示の解除
+            if (ja) ja.classList.remove('input-error');
+            if (en) en.classList.remove('input-error');
+            const year = document.getElementById(`${id}-birth-year`);
+            if (year) year.classList.remove('input-error');
+        });
+
+        // 3. データ属性(UUID)の完全削除
+        const groups = document.querySelectorAll('.horse-input-group');
+        groups.forEach(group => {
+            delete group.dataset.uuid;
+        });
+
+        // 4. プレビューの全更新
+        ALL_IDS.forEach(id => this.updatePreview(id));
+
+        // 5. 状態のリセット
+        if (window.App.State) window.App.State.isDirty = false;
+
+        this.showToast("フォームをリセットしました");
+        
+        // ログ出力
+        if (window.App.Logger) window.App.Logger.add('ACTION', 'Form Reset Executed');
     }
 };

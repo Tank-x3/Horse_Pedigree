@@ -68,7 +68,10 @@
 
     <main class="main-container">
         <section class="form-container tab-content active" id="form-tab">
-            <h2>入力フォーム</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h2 style="margin: 0;">入力フォーム</h2>
+                <button id="reset-form-btn" class="reset-btn">🗑️ 新規入力 (リセット)</button>
+            </div>
             <div class="generation-selector">
                 <span>表示世代数:</span>
                 <label><input type="radio" name="generation" value="2" checked> 2代</label>
