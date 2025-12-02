@@ -5,6 +5,7 @@ window.App.UI = {
     // --- 初期化・生成系 ---
     initUI: function() {
         App.Logger.add('UI', 'initUI started');
+        this.initTheme(); // ★追加
         this.initFormPreviewSync();
         this.initResponsiveTabs();
         this.initAutocomplete();
@@ -155,7 +156,10 @@ window.App.UI = {
                             <span class="horse-color" id="preview-${cell.id}-color"></span>
                         </div>
                         <div class="horse-lineage" id="preview-${cell.id}-lineage"></div>
-                        <div class="horse-country" id="preview-${cell.id}-country"></div>
+                        <div class="horse-bottom-row">
+                            <span class="horse-family-no" id="preview-${cell.id}-family-no"></span>
+                            <span class="horse-country" id="preview-${cell.id}-country"></span>
+                        </div>
                     </div>
                 `;
                 tr.appendChild(td);
@@ -222,8 +226,9 @@ window.App.UI = {
         const country = document.getElementById(`${id}-country`)?.value.trim();
         const color = document.getElementById(`${id}-color`)?.value.trim();
         const lineage = document.getElementById(`${id}-lineage`)?.value.trim();
+        const familyNo = document.getElementById(`${id}-family-no`)?.value.trim(); // 追加
         
-        // ★修正: ダミー馬名はプレビューに出さない
+        // ダミー馬名はプレビューに出さない
         let dispName = ja || en || '&nbsp;';
         if (this.isDummyHorseName(ja)) {
             dispName = '&nbsp;';
@@ -244,6 +249,7 @@ window.App.UI = {
             const col = parseInt(cellEl?.dataset.col);
             
             if (col === 5) {
+                // 5代目はスペースがないので名前と生年のみ（既存通り）
                 let text = dispName;
                 if ((ja || en) && year) text += `<span class="preview-year-5th"> (${year})</span>`;
                 else if (year) text = `<span class="preview-year-5th">(${year})</span>`;
@@ -260,8 +266,16 @@ window.App.UI = {
 
                 const pLineage = document.getElementById(`preview-${id}-lineage`);
                 const pCountry = document.getElementById(`preview-${id}-country`);
+                const pFamily = document.getElementById(`preview-${id}-family-no`); // 追加
+
                 if (pLineage) pLineage.textContent = lineage || '';
                 if (pCountry) pCountry.textContent = country || '';
+                
+                // ★F-No.の表示更新
+                if (pFamily) {
+                    pFamily.textContent = familyNo || '';
+                    pFamily.style.display = familyNo ? 'inline-block' : 'none';
+                }
             }
         }
         
@@ -820,6 +834,36 @@ window.App.UI = {
                 if(container.contains(toast)) container.removeChild(toast);
             }, 300);
         }, duration);
+    },
+
+// --- ダークモード管理 ---
+    initTheme: function() {
+        const toggleBtn = document.getElementById('toggle-theme');
+        if (!toggleBtn) return;
+
+        // 保存された設定、またはOSの設定を確認
+        const savedTheme = localStorage.getItem('app-theme');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        
+        // 初期適応
+        if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+            document.body.dataset.theme = 'dark';
+            toggleBtn.textContent = '☀️';
+        }
+
+        // 切り替えイベント
+        toggleBtn.addEventListener('click', () => {
+            const currentTheme = document.body.dataset.theme;
+            if (currentTheme === 'dark') {
+                document.body.removeAttribute('data-theme');
+                localStorage.setItem('app-theme', 'light');
+                toggleBtn.textContent = '🌙';
+            } else {
+                document.body.dataset.theme = 'dark';
+                localStorage.setItem('app-theme', 'dark');
+                toggleBtn.textContent = '☀️';
+            }
+        });
     },
 
     // --- フォームリセット機能 ---
