@@ -22,20 +22,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
     // 1. 初期化プロセス (Initialization)
     // ==========================================
-    
+
     initialize();
 
     async function initialize() {
         try {
             log('SYSTEM', 'App Initializing...');
-            
-            initButtons(); 
-            initModal(); 
-            App.UI.initDOM(); 
-            App.UI.initGenerationSelector(); 
+
+            initButtons();
+            initModal();
+            App.UI.initDOM();
+            App.UI.initGenerationSelector();
             App.UI.initUI();
-            
-            initPageLeaveWarning(); 
+
+            initPageLeaveWarning();
             initFormDirtyStateTracking();
         } catch (e) { console.error('Initialization Error:', e); }
 
@@ -66,14 +66,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const logBtn = document.getElementById('download-debug-log');
         const resetBtn = document.getElementById('reset-form-btn');
 
-        if(loadBtn) loadBtn.onclick = handleLoadDB;
-        if(saveLocalBtn) saveLocalBtn.onclick = handleSaveLocal;
-        if(saveBtn) saveBtn.onclick = handleSaveDBRequest;
-        if(imgBtn) imgBtn.onclick = App.UI.handleSaveImage.bind(App.UI);
-        if(resetBtn) resetBtn.onclick = App.UI.resetForm.bind(App.UI);
-        
+        if (loadBtn) loadBtn.onclick = handleLoadDB;
+        if (saveLocalBtn) saveLocalBtn.onclick = handleSaveLocal;
+        if (saveBtn) saveBtn.onclick = handleSaveDBRequest;
+        if (imgBtn) imgBtn.onclick = App.UI.handleSaveImage.bind(App.UI);
+        if (resetBtn) resetBtn.onclick = App.UI.resetForm.bind(App.UI);
+
         // デバッグボタンの表示制御
-        if(logBtn) {
+        if (logBtn) {
             if (App.Logger && App.Logger.isEnabled) {
                 logBtn.style.display = 'inline-block';
                 logBtn.onclick = () => App.Logger.downloadLogs();
@@ -81,18 +81,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 logBtn.style.display = 'none';
             }
         }
-        
-        if(cancelSaveBtn) cancelSaveBtn.onclick = () => {
+
+        if (cancelSaveBtn) cancelSaveBtn.onclick = () => {
             document.getElementById('save-confirm-modal-overlay').classList.add('hidden');
             state.pendingSaveData = null;
         };
-        if(execSaveBtn) execSaveBtn.onclick = executeSaveDB;
+        if (execSaveBtn) execSaveBtn.onclick = executeSaveDB;
     }
 
     function initModal() {
         const migrationModal = document.getElementById('migration-modal-overlay');
         const closeMigrationBtn = document.getElementById('close-migration-wizard');
-        if(closeMigrationBtn) closeMigrationBtn.onclick = () => migrationModal.classList.add('hidden');
+        if (closeMigrationBtn) closeMigrationBtn.onclick = () => migrationModal.classList.add('hidden');
     }
 
     function initPageLeaveWarning() {
@@ -100,10 +100,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (state.isDirty) { e.preventDefault(); e.returnValue = ''; }
         });
     }
-    
+
     function initFormDirtyStateTracking() {
         const form = document.querySelector('.form-container');
-        if(form) form.addEventListener('input', () => state.isDirty = true);
+        if (form) form.addEventListener('input', () => state.isDirty = true);
     }
 
     // ==========================================
@@ -115,7 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const data = await App.API.fetchAllHorses();
             data.forEach(horse => {
-                if(horse.id) state.db.set(horse.id, horse);
+                if (horse.id) state.db.set(horse.id, horse);
             });
             console.log(`DB Loaded: ${state.db.size} records`);
             log('DB', 'Fetch DB success', { count: state.db.size });
@@ -124,7 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
             log('ERROR', 'Fetch DB failed', { error: error.message });
             if (isInitial) {
                 const msgEl = document.getElementById('loading-message');
-                if(msgEl) {
+                if (msgEl) {
                     msgEl.textContent = 'データの読み込みに失敗しました。リロードしてください。';
                     msgEl.style.color = 'red';
                 }
@@ -137,9 +137,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function postDB(dataToSave) {
-        if(state.isLoading) return;
+        if (state.isLoading) return;
         state.isLoading = true;
-        
+
         App.UI.setSaveButtonLoading(true, '通信中...');
         App.UI.setGlobalLoading(true, '保存中...', 'サーバーにデータを送信しています...');
         log('DB', 'Post DB start', { count: dataToSave.size });
@@ -147,12 +147,12 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const horsesArray = Array.from(dataToSave.values());
             await App.API.saveHorses(horsesArray);
-            
+
             App.UI.setGlobalLoading(false);
             App.UI.setSaveButtonLoading(true, '同期中...');
             App.UI.showToast('保存が完了しました');
             state.isDirty = false;
-            
+
             await fetchDB(); // データ再同期
         } catch (error) {
             console.error('Post Error:', error);
@@ -172,8 +172,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // 保存リクエストのハンドリング（競合チェック）
     async function handleSaveDBRequest() {
         log('LOGIC', 'handleSaveDBRequest started');
-        
-        // 簡易バリデーション
+
+        // バリデーション
         const hasInput = ALL_IDS.some(id => {
             const ja = document.getElementById(`${id}-name-ja`);
             const en = document.getElementById(`${id}-name-en`);
@@ -182,118 +182,207 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         if (hasInput && !App.UI.checkRequiredFields()) return;
 
-        if(state.isLoading) return;
+        if (state.isLoading) return;
         state.isLoading = true;
-        
-        App.UI.setSaveButtonLoading(true, '通信中...');
-        App.UI.setGlobalLoading(true, '同期中...', 'データの競合を確認しています...');
+        App.UI.setSaveButtonLoading(true, '処理中...');
 
         try {
-            await fetchDB(); // 最新データを取得して比較
-        } catch (e) {
-            state.isLoading = false;
-            App.UI.setGlobalLoading(false);
-            App.UI.setSaveButtonLoading(false, 'サーバーに保存');
-            return;
-        }
-        
-        const formData = App.UI.getFormDataAsMap();
-        
-        // ダミー馬（欠損家系）の自動生成
-        fillMissingAncestors(formData);
+            // ==================================================
+            // Phase 1: クライアントサイドでの入力矛盾解決 (Loop)
+            // ==================================================
+            while (true) {
+                // 1. 最新のフォームデータを取得
+                const formData = App.UI.getFormDataAsMap();
+                fillMissingAncestors(formData); // ダミー馬補完
 
-        const conflicts = [];
-        log('LOGIC', 'Form data collected', { count: formData.size });
+                // 2. 名寄せと矛盾検知の準備
+                const groupMap = new Map(); // Key -> List< {pos, horse} >
+                for (const [pos, horse] of formData.entries()) {
+                    const name = horse.name_ja || horse.name_en;
+                    if (!name) continue;
+                    const key = `${name}_${horse.birth_year || ''}`;
+                    if (!groupMap.has(key)) groupMap.set(key, []);
+                    groupMap.get(key).push({ pos, horse });
+                }
 
-        // 各馬のデータ照合
-        for (const [tempId, formHorse] of formData.entries()) {
-            let targetUUID = formHorse.id;
-            let dbHorse = null;
-            let matchReason = '';
+                const inputConflicts = []; // ユーザー解決が必要な矛盾リスト
 
-            // IDがない場合の名寄せ（同一馬判定）
-            if (!targetUUID || !state.db.has(targetUUID)) {
-                for (const [existingId, existingHorse] of state.db.entries()) {
-                    const formName = formHorse.name_ja || formHorse.name_en;
-                    if (!formName) continue; // 名前がないデータは判定しない（重要）
+                // 3. グループごとの矛盾チェック
+                for (const [key, list] of groupMap.entries()) {
+                    if (list.length <= 1) continue;
 
-                    if (!formHorse.is_fictional && !existingHorse.is_fictional) {
-                        // 実在馬: 欧字名 & 生年の一致
-                        if (existingHorse.name_en && formHorse.name_en &&
-                            existingHorse.name_en.toLowerCase().trim() === formHorse.name_en.toLowerCase().trim() &&
-                            String(existingHorse.birth_year) === String(formHorse.birth_year)) {
-                            targetUUID = existingId; dbHorse = existingHorse; 
-                            matchReason = 'RealHorse (NameEN + Year)';
-                            break;
+                    // コンテンツによるバリアント分類
+                    const variants = [];
+                    list.forEach(item => {
+                        const h = item.horse;
+                        // 既存のバリアントと同じ内容かチェック
+                        let match = variants.find(v => isContentSame(v.horse, h));
+                        if (match) {
+                            match.formIds.push(item.pos);
+                            // IDがあれば統合（IDがあるデータを正とする）
+                            if (h.id && !match.horse.id) match.horse.id = h.id;
+                        } else {
+                            variants.push({ formIds: [item.pos], horse: { ...h } });
                         }
-                    } else if (formHorse.name_ja && existingHorse.name_ja === formHorse.name_ja && String(existingHorse.birth_year) === String(formHorse.birth_year)) {
-                        // 架空馬: カナ名 & 生年の一致
-                        targetUUID = existingId; dbHorse = existingHorse; 
-                        matchReason = 'Fictional/Ja (NameJA + Year)';
-                        break;
+                    });
+
+                    // 複数バリアントがある場合、矛盾として扱う
+                    if (variants.length > 1) {
+                        inputConflicts.push({
+                            key: key,
+                            name: list[0].horse.name_ja || list[0].horse.name_en, // 表示名
+                            variants: variants
+                        });
                     }
                 }
-            } else { 
-                dbHorse = state.db.get(targetUUID);
-                matchReason = 'UUID Match';
-            }
 
-            // 競合判定
-            if (dbHorse) {
-                const diffs = [];
-                const fields = ['name_ja', 'name_en', 'birth_year', 'country', 'color', 'family_no', 'lineage'];
-                fields.forEach(field => {
-                    const dbVal = String(dbHorse[field] || '').trim();
-                    const formVal = String(formHorse[field] || '').trim();
-                    if (dbVal !== '' && dbVal !== formVal) diffs.push({ field, old: dbVal, new: formVal });
-                });
-                
-                // フラグ補正
-                if (dbHorse.is_fictional !== formHorse.is_fictional) {
-                    if (formHorse.is_fictional) dbHorse.is_fictional = true; 
+                // 4. 矛盾があればモーダル表示 -> DOM反映 -> ループ先頭へ
+                if (inputConflicts.length > 0) {
+                    App.UI.setGlobalLoading(false); // モーダル操作のためローディング解除
+                    await new Promise(resolve => {
+                        App.UI.showInputConflictModal(inputConflicts, (resolvedMap) => {
+                            App.UI.reflectResolvedDataToDom(resolvedMap);
+                            resolve(); // 解決後、Promise解決してループ継続
+                        });
+                    });
+                    // DOMが更新されたので、次のループで再度getFormDataAsMapして確認する
+                    continue;
                 }
 
-                if (diffs.length > 0) {
-                    // ダミー馬からの昇格判定（自動承認）
-                    const isDbDummy = App.UI.isDummyHorseName(dbHorse.name_ja);
-                    const isFormDummy = App.UI.isDummyHorseName(formHorse.name_ja);
-                    
-                    if (isDbDummy && !isFormDummy) {
-                        // DBがダミーで入力が実名なら、問答無用で更新
-                        Object.assign(dbHorse, formHorse);
-                        if (formHorse.id && formHorse.id !== targetUUID) {
-                            state.db.delete(formHorse.id); state.db.set(targetUUID, dbHorse);
+                // 矛盾がなければループを抜ける
+                break;
+            } // End While
+
+            App.UI.setGlobalLoading(true, '同期中...', 'データの競合を確認しています...');
+
+            // ==================================================
+            // Phase 2: 全体整合性の確保と親子リンク再構築
+            // ==================================================
+
+            // 矛盾解決後のクリーンなデータを取得
+            const finalFormData = App.UI.getFormDataAsMap();
+            fillMissingAncestors(finalFormData);
+
+            const nameToId = new Map();
+            // 1. UUIDの統一 (名寄せ)
+            for (const horse of finalFormData.values()) {
+                const name = horse.name_ja || horse.name_en;
+                if (!name) continue;
+                const key = `${name}_${horse.birth_year || ''}`;
+
+                if (nameToId.has(key)) {
+                    horse.id = nameToId.get(key); // 既知のIDを適用
+                } else {
+                    if (!horse.id) horse.id = generateUUID(); // IDが無ければ発行
+                    nameToId.set(key, horse.id);
+                }
+            }
+
+            // 2. 親子リンクの再構築
+            ALL_IDS.forEach(id => {
+                const horse = finalFormData.get(id);
+                if (!horse) return;
+
+                const sId = (id === 'target') ? 's' : id + 's';
+                const dId = (id === 'target') ? 'd' : id + 'd';
+
+                if (finalFormData.has(sId)) horse.sire_id = finalFormData.get(sId).id;
+                if (finalFormData.has(dId)) horse.dam_id = finalFormData.get(dId).id;
+            });
+
+            // DOMにも確定UUIDを書き戻しておく（これ重要）
+            ALL_IDS.forEach(id => {
+                const horse = finalFormData.get(id);
+                if (horse && horse.id) {
+                    const group = document.querySelector(`.horse-input-group[data-horse-id="${id}"]`);
+                    if (group) group.dataset.uuid = horse.id;
+                }
+            });
+
+            // ==================================================
+            // Phase 3: DBとの競合チェック
+            // ==================================================
+            try {
+                await fetchDB();
+            } catch (e) {
+                // 失敗しても強制続行するか？ ここでは中断する
+                state.isLoading = false;
+                App.UI.setGlobalLoading(false);
+                App.UI.setSaveButtonLoading(false, 'サーバーに保存');
+                return;
+            }
+
+            const dbConflicts = [];
+            // finalFormData は今やユニークな馬データの集合と同じIDを持つはずだが
+            // posごとのMapなので、values()でユニークな馬リストを作る必要がある
+
+            // 馬単位でまとめる
+            const horsesToSave = new Map(); // UUID -> Horse
+            for (const h of finalFormData.values()) {
+                if (h.id) horsesToSave.set(h.id, h);
+            }
+
+            for (const [uuid, newHorse] of horsesToSave.entries()) {
+                if (state.db.has(uuid)) {
+                    const dbHorse = state.db.get(uuid);
+                    const diffs = [];
+                    // 比較フィールド
+                    const fields = ['name_ja', 'name_en', 'birth_year', 'country', 'color', 'family_no', 'lineage'];
+                    fields.forEach(field => {
+                        const dbVal = String(dbHorse[field] || '').trim();
+                        const newVal = String(newHorse[field] || '').trim();
+                        if (dbVal !== '' && dbVal !== newVal) {
+                            diffs.push({ field, old: dbVal, new: newVal });
                         }
-                        log('ACTION', 'Auto-Promoted Dummy Horse', { uuid: targetUUID, newName: formHorse.name_ja });
+                    });
+
+                    // 架空馬フラグの同期
+                    if (newHorse.is_fictional) dbHorse.is_fictional = true;
+
+                    if (diffs.length > 0) {
+                        // ダミー馬昇格判定
+                        const isDbDummy = App.UI.isDummyHorseName(dbHorse.name_ja);
+                        const isNewDummy = App.UI.isDummyHorseName(newHorse.name_ja);
+
+                        if (isDbDummy && !isNewDummy) {
+                            // 自動マージ
+                            Object.assign(dbHorse, newHorse);
+                            horsesToSave.set(uuid, dbHorse); // 更新されたDB馬を使う
+                            log('ACTION', 'Auto-Promoted', { uuid });
+                        } else {
+                            // 競合
+                            dbConflicts.push({ horse: newHorse, dbHorse, diffs });
+                        }
                     } else {
-                        // 通常の競合（ユーザー確認へ）
-                        formHorse.id = targetUUID; 
-                        conflicts.push({ horse: formHorse, dbHorse, diffs });
-                        log('WARN', 'Conflict Detected', { tempId, targetUUID, matchReason, diffs });
+                        // 差分なし（単純更新）
+                        Object.assign(dbHorse, newHorse);
                     }
                 } else {
-                    // 差異なし（更新のみ）
-                    Object.assign(dbHorse, formHorse);
-                    if (formHorse.id && formHorse.id !== targetUUID) {
-                        state.db.delete(formHorse.id); state.db.set(targetUUID, dbHorse);
-                    }
+                    // 新規
+                    // そのまま
                 }
-            } else {
-                // 新規データ
-                formData.set(tempId, formHorse);
             }
-        }
 
-        if (conflicts.length > 0) {
+            if (dbConflicts.length > 0) {
+                state.isLoading = false; // モーダルへ
+                App.UI.setGlobalLoading(false);
+                App.UI.setSaveButtonLoading(false, 'サーバーに保存');
+
+                // pendingSaveDataには horsesToSave (Map<UUID, Horse>) を渡したいが、
+                // showSaveConfirmModalの既存実装に合わせて渡す
+                state.pendingSaveData = horsesToSave;
+                App.UI.showSaveConfirmModal(dbConflicts, horsesToSave);
+            } else {
+                state.isLoading = false;
+                saveDataDirectly(horsesToSave);
+            }
+
+        } catch (err) {
+            console.error(err);
             state.isLoading = false;
             App.UI.setGlobalLoading(false);
             App.UI.setSaveButtonLoading(false, 'サーバーに保存');
-            
-            state.pendingSaveData = formData;
-            App.UI.showSaveConfirmModal(conflicts, formData);
-        } else {
-            state.isLoading = false; 
-            saveDataDirectly(formData);
+            alert('保存処理中に予期せぬエラーが発生しました: ' + err.message);
         }
     }
 
@@ -310,7 +399,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const formHorse = state.pendingSaveData.get(tempId);
                     if (formHorse) {
                         formHorse.id = null; // 新規発行
-                        state.pendingSaveData.set(tempId, formHorse);
+                        // Mapのキーは維持でもValueのIDがnullなら新規扱い
                         log('ACTION', 'Conflict Resolution: New', { tempId });
                     }
                 } else if (actionInput.value === 'skip') {
@@ -318,91 +407,39 @@ document.addEventListener('DOMContentLoaded', () => {
                     log('ACTION', 'Conflict Resolution: Skip', { tempId });
                 } else {
                     const formHorse = state.pendingSaveData.get(tempId);
-                    const dbHorse = state.db.get(formHorse.id);
-                    if(dbHorse) Object.assign(dbHorse, formHorse);
+                    // ここではDBのインスタンスを更新せず、送信データ(pendingSaveData)を正とする
+                    // DBインスタンスへの反映はpostDB完了後のfetchDBで行われるため
                     log('ACTION', 'Conflict Resolution: Update', { tempId, uuid: formHorse.id });
                 }
             }
         });
-        
+
         saveDataDirectly(state.pendingSaveData);
         document.getElementById('save-confirm-modal-overlay').classList.add('hidden');
         state.pendingSaveData = null;
     }
 
-    // 最終的なデータ構築と送信
-    function saveDataDirectly(formData) {
-        log('LOGIC', 'saveDataDirectly start', { count: formData.size });
-        const nameMap = new Map();
+    // 馬データの同一性チェック（詳細フィールド）
+    function isContentSame(h1, h2) {
+        if (!h1 || !h2) return false;
+        const keys = ['country', 'color', 'family_no', 'lineage', 'is_fictional'];
+        return keys.every(k => String(h1[k] || '').trim() === String(h2[k] || '').trim());
+    }
 
-        // 1. 同一バッチ内でのID共有（名寄せ）
-        for (const horse of formData.values()) {
-            const name = horse.name_ja || horse.name_en;
-            
-            if (name) {
-                const key = `${name}_${horse.birth_year || ''}`;
-                if (nameMap.has(key)) {
-                    const originalId = horse.id;
-                    horse.id = nameMap.get(key);
-                    log('LOGIC', 'ID Merged by NameKey', { key, originalId, newId: horse.id });
-                } else {
-                    if (!horse.id) {
-                        horse.id = generateUUID();
-                        log('LOGIC', 'Generated UUID (Name exists)', { name, uuid: horse.id });
-                    }
-                    nameMap.set(key, horse.id);
-                }
-            } else {
-                // 名前なしでもID発行（防御的記述）
-                if (!horse.id) {
-                    horse.id = generateUUID();
-                    log('LOGIC', 'Generated UUID (No name)', { uuid: horse.id });
-                }
-            }
+    // 確定したデータの保存
+    function saveDataDirectly(horsesMap) {
+        log('LOGIC', 'saveDataDirectly start', { count: horsesMap.size });
+
+        // 最終安全装置
+        for (const h of horsesMap.values()) {
+            if (!h.id) h.id = generateUUID();
+            // null / undefined を空文字へ
+            ['sire_id', 'dam_id', 'sire_name', 'dam_name'].forEach(k => {
+                if (h[k] === undefined || h[k] === null) h[k] = '';
+            });
         }
 
-        // 2. 親子リンクの解決
-        ALL_IDS.forEach(id => {
-            const horse = formData.get(id);
-            if (!horse) return;
-
-            let sireIdPrefix, damIdPrefix;
-            if (id === 'target') { sireIdPrefix = 's'; damIdPrefix = 'd'; }
-            else { sireIdPrefix = id + 's'; damIdPrefix = id + 'd'; }
-
-            if (formData.has(sireIdPrefix)) {
-                horse.sire_id = formData.get(sireIdPrefix).id;
-            }
-            if (formData.has(damIdPrefix)) {
-                horse.dam_id = formData.get(damIdPrefix).id;
-            }
-        });
-
-        // 3. 送信データの作成
-        const newDb = new Map(state.db);
-        for (const horse of formData.values()) {
-            if (!horse.id) horse.id = generateUUID(); 
-
-            if (newDb.has(horse.id)) {
-                Object.assign(newDb.get(horse.id), horse);
-            } else {
-                newDb.set(horse.id, horse);
-            }
-        }
-
-        // 4. 確定したIDをDOMに書き戻す (多重登録防止の最重要処理)
-        for (const [id, horse] of formData.entries()) {
-            if (horse.id) {
-                const group = document.querySelector(`.horse-input-group[data-horse-id="${id}"]`);
-                if (group) group.dataset.uuid = horse.id;
-            }
-        }
-
-        if (newDb.size > 0) {
-            postDB(newDb);
-        } else {
-            alert('保存するデータがありません。');
-        }
+        postDB(horsesMap);
     }
 
     // ==========================================
@@ -411,7 +448,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function fillMissingAncestors(formData) {
         // 既存ダミー馬の検索マップ（再利用・重複防止）
-        const existingDummyMap = new Map(); 
+        const existingDummyMap = new Map();
         state.db.forEach(horse => {
             if (horse.is_fictional && App.UI.isDummyHorseName(horse.name_ja)) {
                 existingDummyMap.set(horse.name_ja, horse.id);
@@ -439,7 +476,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // 補完対象確定：ダミー馬を生成
                 let childId = (id.length === 1) ? 'target' : id.substring(0, id.length - 1);
                 const child = formData.get(childId);
-                
+
                 let childName = child ? (child.name_ja || child.name_en) : '';
                 if (!childName) childName = '未登録馬';
 
@@ -447,7 +484,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (App.UI.isDummyHorseName(childName)) {
                     childName = App.UI.formatDummyName(childName).replace(/[（）()]/g, '');
                 }
-                
+
                 const suffix = (id.endsWith('s')) ? 'の父' : 'の母';
                 const dummyName = `(未登録: ${childName}${suffix})`;
 
@@ -474,7 +511,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     birth_year: '',
                     is_fictional: true,
                     country: '', color: '', family_no: '', lineage: '',
-                    sire_name: '', dam_name: '' 
+                    sire_name: '', dam_name: ''
                 };
                 formData.set(id, dummyHorse);
             }
@@ -491,7 +528,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const formData = App.UI.getFormDataAsMap();
         const nameMap = new Map();
-        
+
         // メモリ内データのマップ化
         for (const horse of state.db.values()) {
             const name = horse.name_ja || horse.name_en;
@@ -523,7 +560,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!horse) return;
             let sId = (id === 'target') ? 's' : id + 's';
             let dId = (id === 'target') ? 'd' : id + 'd';
-            
+
             if (formData.has(sId)) horse.sire_id = formData.get(sId).id;
             if (formData.has(dId)) horse.dam_id = formData.get(dId).id;
         });
@@ -536,7 +573,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 state.db.set(horse.id, horse);
             }
         }
-        
+
         // 画面へのID反映
         ALL_IDS.forEach(id => {
             const horse = formData.get(id);
@@ -549,7 +586,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // CSV出力
         const csvString = convertDbToCSV(state.db);
         downloadFile(csvString, 'pedigree_db_local.csv', 'text/csv');
-        
+
         state.isDirty = false;
         alert('CSVファイルを保存しました。\n現在入力中のデータもリストに追加されました。');
     }
@@ -567,7 +604,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         input.click();
     }
-    
+
     function parseCSV(csvText) {
         log('ACTION', 'parseCSV');
         const lines = csvText.trim().split(/\r?\n/);
@@ -580,7 +617,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return obj;
         });
         const tempMap = new Map();
-        
+
         data.forEach(row => {
             const nameJa = isOldFormat ? (/[a-zA-Z]/.test(row.name) ? '' : row.name) : row.name_ja;
             const nameEn = isOldFormat ? (/[a-zA-Z]/.test(row.name) ? row.name : '') : row.name_en;
@@ -594,18 +631,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 tempMap.set(uniqueKey, uuid);
                 // CSVデータの正規化
                 horse = {
-                    id: uuid, 
-                    name_ja: nameJa, 
-                    name_en: nameEn, 
+                    id: uuid,
+                    name_ja: nameJa,
+                    name_en: nameEn,
                     birth_year: birthYear,
                     is_fictional: (row.is_fictional === 'true' || row.is_fictional === true),
-                    country: row.country || '', 
+                    country: row.country || '',
                     color: row.color || '',
-                    family_no: row.family_no || '', 
+                    family_no: row.family_no || '',
                     lineage: row.lineage || '',
-                    sire_id: row.sire_id || null, 
+                    sire_id: row.sire_id || null,
                     dam_id: row.dam_id || null,
-                    sire_name: row.sire_name || '', 
+                    sire_name: row.sire_name || '',
                     dam_name: row.dam_name || ''
                 };
                 state.db.set(uuid, horse);
