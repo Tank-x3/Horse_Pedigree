@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="ja">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,9 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=1.1">
+    <link rel="stylesheet" href="css/style.css?v=1.0">
 </head>
-
 <body>
     <div class="modal-overlay" id="global-loading-overlay" style="z-index: 2000;">
         <div class="modal" style="width: 300px;">
@@ -26,18 +24,12 @@
             <div class="migration-info-box">
                 <h4>⚠️ 重要な変更点</h4>
                 <ul>
-                    <li><strong>実在馬は「欧字馬名」が必須になります</strong><br><small>データの重複を防ぐため、実在馬はアルファベット名（例: Sunday
-                            Silence）の入力が必要です。</small></li>
+                    <li><strong>実在馬は「欧字馬名」が必須になります</strong><br><small>データの重複を防ぐため、実在馬はアルファベット名（例: Sunday Silence）の入力が必要です。</small></li>
                     <li><strong>「架空馬」チェックボックスの追加</strong><br><small>チェックを入れると、欧字名や生年が未入力でも登録できるようになります。</small></li>
                 </ul>
                 <h4>➕ 追加された項目（すべて任意）</h4>
                 <p><small>以下の詳細情報を記録できるようになりました。</small></p>
-                <ul class="inline-list">
-                    <li>生産国</li>
-                    <li>毛色</li>
-                    <li>ファミリーNo.</li>
-                    <li>系統名</li>
-                </ul>
+                <ul class="inline-list"><li>生産国</li><li>毛色</li><li>ファミリーNo.</li><li>系統名</li></ul>
             </div>
             <div class="modal-buttons">
                 <button id="close-migration-wizard">確認しました</button>
@@ -57,17 +49,6 @@
         </div>
     </div>
 
-    <div class="modal-overlay hidden" id="input-conflict-modal-overlay">
-        <div class="modal input-conflict-modal" style="width: 500px;">
-            <h3>⚠️ 入力内容の矛盾</h3>
-            <p>同一の馬に対して、異なる情報が入力されています。<br>正しい情報を選択して統合してください。</p>
-            <div id="input-conflict-list" class="save-confirm-list"></div>
-            <div class="modal-buttons">
-                <button id="resolve-conflict-btn" disabled>決定して反映</button>
-            </div>
-        </div>
-    </div>
-
     <header class="main-header">
         <div class="header-group">
             <button id="load-db">CSV読込</button>
@@ -80,7 +61,7 @@
             <button id="download-debug-log" style="margin-left: 10px;">🛠️ ログ保存</button>
         </div>
     </header>
-
+    
     <div class="tab-container">
         <button class="tab-button active" data-tab="form">入力フォーム</button>
         <button class="tab-button" data-tab="preview">血統表プレビュー</button>
@@ -121,15 +102,14 @@
     <div id="toast-container"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-
+    
     <script src="js/0_logger.js?v=1.0"></script>
-
+    
     <script src="js/1_consts.js?v=1.0"></script>
     <script src="js/2_utils.js?v=1.0"></script>
     <script src="js/3_api.js?v=1.0"></script>
     <script src="js/4_pedigree.js?v=1.0"></script>
-    <script src="js/5_ui.js?v=1.1"></script>
-    <script src="js/6_main.js?v=1.1"></script>
+    <script src="js/5_ui.js?v=1.0"></script>
+    <script src="js/6_main.js?v=1.0"></script>
 </body>
-
 </html>

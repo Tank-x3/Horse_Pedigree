@@ -4,12 +4,12 @@ window.App = window.App || {};
 // UI操作・画面描画ロジック (UI Module)
 // ==========================================
 window.App.UI = {
-
+    
     // ==========================================
     // 1. 初期化系 (Initialization)
     // ==========================================
-
-    initUI: function () {
+    
+    initUI: function() {
         App.Logger.add('UI', 'initUI started');
         this.initTheme(); // ダークモード設定の読み込み
         this.initFormPreviewSync();
@@ -19,20 +19,20 @@ window.App.UI = {
         this.initSimpleModeToggle();
     },
 
-    initDOM: function () {
+    initDOM: function() {
         this.createFormGroups();
         this.createPreviewTable();
     },
 
     // --- ダークモード管理 ---
-    initTheme: function () {
+    initTheme: function() {
         const toggleBtn = document.getElementById('toggle-theme');
         if (!toggleBtn) return;
 
         // 保存された設定、またはOSの設定を確認
         const savedTheme = localStorage.getItem('app-theme');
         const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-
+        
         // 初期適用
         if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
             document.body.dataset.theme = 'dark';
@@ -59,10 +59,10 @@ window.App.UI = {
     // ==========================================
 
     // 入力フォーム群の生成
-    createFormGroups: function () {
+    createFormGroups: function() {
         const { ALL_IDS, GENERATION_LABELS } = App.Consts;
         const { getGeneration } = App.Utils;
-
+        
         const container = document.getElementById('dynamic-form-container');
         if (!container) return;
         container.innerHTML = '';
@@ -94,10 +94,10 @@ window.App.UI = {
             dummyNotif.id = `${id}-dummy-notification`;
             dummyNotif.className = 'dummy-notification-area';
             group.appendChild(dummyNotif);
-
+            
             // 系統クリアボタンのイベント登録
             const clearBtn = header.querySelector('.clear-ancestor-btn');
-            if (clearBtn) clearBtn.onclick = (e) => this.handleClearAncestors(id);
+            if(clearBtn) clearBtn.onclick = (e) => this.handleClearAncestors(id);
 
             // 基本情報（名前・生年）
             const basicRow = document.createElement('div');
@@ -134,41 +134,41 @@ window.App.UI = {
     },
 
     // プレビュー用テーブルの生成
-    createPreviewTable: function () {
+    createPreviewTable: function() {
         // テーブル構造定義
         const rows = [
-            [{ id: 's', rs: 16, c: 1 }, { id: 'ss', rs: 8, c: 2 }, { id: 'sss', rs: 4, c: 3 }, { id: 'ssss', rs: 2, c: 4 }, { id: 'sssss', c: 5 }],
-            [{ id: 'ssssd', c: 5 }],
-            [{ id: 'sssd', rs: 2, c: 4 }, { id: 'sssds', c: 5 }],
-            [{ id: 'sssdd', c: 5 }],
-            [{ id: 'ssd', rs: 4, c: 3 }, { id: 'ssds', rs: 2, c: 4 }, { id: 'ssdss', c: 5 }],
-            [{ id: 'ssdsd', c: 5 }],
-            [{ id: 'ssdd', rs: 2, c: 4 }, { id: 'ssdds', c: 5 }],
-            [{ id: 'ssddd', c: 5 }],
-            [{ id: 'sd', rs: 8, c: 2 }, { id: 'sds', rs: 4, c: 3 }, { id: 'sdss', rs: 2, c: 4 }, { id: 'sdsss', c: 5 }],
-            [{ id: 'sdssd', c: 5 }],
-            [{ id: 'sdsd', rs: 2, c: 4 }, { id: 'sdsds', c: 5 }],
-            [{ id: 'sdsdd', c: 5 }],
-            [{ id: 'sdd', rs: 4, c: 3 }, { id: 'sdds', rs: 2, c: 4 }, { id: 'sddss', c: 5 }],
-            [{ id: 'sddsd', c: 5 }],
-            [{ id: 'sddd', rs: 2, c: 4 }, { id: 'sddds', c: 5 }],
-            [{ id: 'sdddd', c: 5 }],
-            [{ id: 'd', rs: 16, c: 1 }, { id: 'ds', rs: 8, c: 2 }, { id: 'dss', rs: 4, c: 3 }, { id: 'dsss', rs: 2, c: 4 }, { id: 'dssss', c: 5 }],
-            [{ id: 'dsssd', c: 5 }],
-            [{ id: 'dssd', rs: 2, c: 4 }, { id: 'dssds', c: 5 }],
-            [{ id: 'dssdd', c: 5 }],
-            [{ id: 'dsd', rs: 4, c: 3 }, { id: 'dsds', rs: 2, c: 4 }, { id: 'dsdss', c: 5 }],
-            [{ id: 'dsdsd', c: 5 }],
-            [{ id: 'dsdd', rs: 2, c: 4 }, { id: 'dsdds', c: 5 }],
-            [{ id: 'dsddd', c: 5 }],
-            [{ id: 'dd', rs: 8, c: 2 }, { id: 'dds', rs: 4, c: 3 }, { id: 'ddss', rs: 2, c: 4 }, { id: 'ddsss', c: 5 }],
-            [{ id: 'ddssd', c: 5 }],
-            [{ id: 'ddsd', rs: 2, c: 4 }, { id: 'ddsds', c: 5 }],
-            [{ id: 'ddsdd', c: 5 }],
-            [{ id: 'ddd', rs: 4, c: 3 }, { id: 'ddds', rs: 2, c: 4 }, { id: 'dddss', c: 5 }],
-            [{ id: 'dddsd', c: 5 }],
-            [{ id: 'dddd', rs: 2, c: 4 }, { id: 'dddds', c: 5 }],
-            [{ id: 'ddddd', c: 5 }]
+            [{id:'s',rs:16,c:1}, {id:'ss',rs:8,c:2}, {id:'sss',rs:4,c:3}, {id:'ssss',rs:2,c:4}, {id:'sssss',c:5}],
+            [{id:'ssssd',c:5}],
+            [{id:'sssd',rs:2,c:4}, {id:'sssds',c:5}],
+            [{id:'sssdd',c:5}],
+            [{id:'ssd',rs:4,c:3}, {id:'ssds',rs:2,c:4}, {id:'ssdss',c:5}],
+            [{id:'ssdsd',c:5}],
+            [{id:'ssdd',rs:2,c:4}, {id:'ssdds',c:5}],
+            [{id:'ssddd',c:5}],
+            [{id:'sd',rs:8,c:2}, {id:'sds',rs:4,c:3}, {id:'sdss',rs:2,c:4}, {id:'sdsss',c:5}],
+            [{id:'sdssd',c:5}],
+            [{id:'sdsd',rs:2,c:4}, {id:'sdsds',c:5}],
+            [{id:'sdsdd',c:5}],
+            [{id:'sdd',rs:4,c:3}, {id:'sdds',rs:2,c:4}, {id:'sddss',c:5}],
+            [{id:'sddsd',c:5}],
+            [{id:'sddd',rs:2,c:4}, {id:'sddds',c:5}],
+            [{id:'sdddd',c:5}],
+            [{id:'d',rs:16,c:1}, {id:'ds',rs:8,c:2}, {id:'dss',rs:4,c:3}, {id:'dsss',rs:2,c:4}, {id:'dssss',c:5}],
+            [{id:'dsssd',c:5}],
+            [{id:'dssd',rs:2,c:4}, {id:'dssds',c:5}],
+            [{id:'dssdd',c:5}],
+            [{id:'dsd',rs:4,c:3}, {id:'dsds',rs:2,c:4}, {id:'dsdss',c:5}],
+            [{id:'dsdsd',c:5}],
+            [{id:'dsdd',rs:2,c:4}, {id:'dsdds',c:5}],
+            [{id:'dsddd',c:5}],
+            [{id:'dd',rs:8,c:2}, {id:'dds',rs:4,c:3}, {id:'ddss',rs:2,c:4}, {id:'ddsss',c:5}],
+            [{id:'ddssd',c:5}],
+            [{id:'ddsd',rs:2,c:4}, {id:'ddsds',c:5}],
+            [{id:'ddsdd',c:5}],
+            [{id:'ddd',rs:4,c:3}, {id:'ddds',rs:2,c:4}, {id:'dddss',c:5}],
+            [{id:'dddsd',c:5}],
+            [{id:'dddd',rs:2,c:4}, {id:'dddds',c:5}],
+            [{id:'ddddd',c:5}]
         ];
 
         const tbody = document.getElementById('preview-table-body');
@@ -189,7 +189,7 @@ window.App.UI = {
                 td.dataset.horseId = cell.id;
 
                 td.onclick = (e) => this.handleCellClick(cell.id);
-
+                
                 td.innerHTML = `
                     <div class="pedigree-cell-content">
                         <span class="horse-name" id="preview-${cell.id}-name">&nbsp;</span>
@@ -216,32 +216,32 @@ window.App.UI = {
     // ==========================================
 
     // 世代選択ラジオボタン
-    initGenerationSelector: function () {
+    initGenerationSelector: function() {
         const selectors = document.querySelectorAll('input[name="generation"]');
         if (selectors.length === 0) return;
         selectors.forEach(radio => { radio.onclick = () => this.handleGenerationChange(); });
         this.handleGenerationChange();
     },
 
-    handleGenerationChange: function () {
+    handleGenerationChange: function() {
         const selectedRadio = document.querySelector('input[name="generation"]:checked');
-        if (!selectedRadio) return;
+        if(!selectedRadio) return;
         const selectedGen = parseInt(selectedRadio.value);
-
+        
         document.querySelectorAll('.horse-input-group[data-generation]').forEach(group => {
             const gen = parseInt(group.dataset.generation);
-            if (gen > selectedGen && gen !== 0) group.classList.add('hidden');
+            if(gen > selectedGen && gen !== 0) group.classList.add('hidden');
             else group.classList.remove('hidden');
         });
         document.querySelectorAll('.pedigree-cell[data-col]').forEach(cell => {
             const col = parseInt(cell.dataset.col);
-            if (col > selectedGen) cell.classList.add('hidden');
+            if(col > selectedGen) cell.classList.add('hidden');
             else cell.classList.remove('hidden');
         });
     },
 
     // フォーム入力とプレビューの同期設定
-    initFormPreviewSync: function () {
+    initFormPreviewSync: function() {
         const { ALL_IDS } = App.Consts;
         ALL_IDS.forEach(id => {
             const inputs = [
@@ -250,7 +250,7 @@ window.App.UI = {
             ];
             inputs.forEach(inId => {
                 const el = document.getElementById(inId);
-                if (el) {
+                if(el) {
                     const eventType = el.type === 'checkbox' ? 'change' : 'input';
                     el.addEventListener(eventType, (e) => {
                         this.updatePreview(id);
@@ -263,19 +263,19 @@ window.App.UI = {
     },
 
     // シンプルモード切り替え
-    initSimpleModeToggle: function () {
+    initSimpleModeToggle: function() {
         const toggle = document.getElementById('simple-mode-toggle');
         const table = document.querySelector('.pedigree-table');
-        if (toggle && table) {
+        if(toggle && table) {
             toggle.addEventListener('change', () => {
-                if (toggle.checked) table.classList.add('simple-mode');
+                if(toggle.checked) table.classList.add('simple-mode');
                 else table.classList.remove('simple-mode');
             });
         }
     },
 
     // タブ切り替え（スマホ用）
-    initResponsiveTabs: function () {
+    initResponsiveTabs: function() {
         const tabButtons = document.querySelectorAll('.tab-button');
         const tabContents = document.querySelectorAll('.tab-content');
         tabButtons.forEach(button => {
@@ -288,9 +288,9 @@ window.App.UI = {
             });
         });
     },
-
+    
     // オートコンプリート設定
-    initAutocomplete: function () {
+    initAutocomplete: function() {
         const { ALL_IDS } = App.Consts;
         ALL_IDS.forEach(id => {
             ['name-ja', 'name-en'].forEach(suffix => {
@@ -311,12 +311,12 @@ window.App.UI = {
         });
     },
 
-    showSuggestions: function (input, container, idPrefix) {
+    showSuggestions: function(input, container, idPrefix) {
         const value = input.value.toLowerCase();
         container.innerHTML = '';
         if (value.length === 0) return;
         const suggestions = [];
-
+        
         if (App.State && App.State.db) {
             for (const horse of App.State.db.values()) {
                 const matchJa = horse.name_ja && horse.name_ja.includes(value);
@@ -325,20 +325,20 @@ window.App.UI = {
                 if (suggestions.length >= 10) break;
             }
         }
-
+        
         suggestions.forEach(horse => {
             const item = document.createElement('div');
             item.className = 'autocomplete-suggestion';
             let label = horse.name_ja || '';
             if (horse.name_en) label += ` (${horse.name_en})`;
             if (horse.birth_year) label += ` ${horse.birth_year}`;
-
+            
             // ダミー馬の場合は整形名を表示
             if (this.isDummyHorseName(horse.name_ja)) {
                 label = this.formatDummyName(horse.name_ja);
             }
             item.textContent = label;
-
+            
             item.addEventListener('click', () => {
                 App.Logger.add('UI', 'Autocomplete Selected', { idPrefix, horseId: horse.id, name: horse.name_ja || horse.name_en });
                 this.populateFormRecursively(horse.id, idPrefix);
@@ -349,13 +349,13 @@ window.App.UI = {
     },
 
     // 入力バリデーション & 安全装置
-    initInputValidation: function () {
+    initInputValidation: function() {
         const { ALL_IDS } = App.Consts;
         ALL_IDS.forEach(id => {
             const jaInput = document.getElementById(`${id}-name-ja`);
             const enInput = document.getElementById(`${id}-name-en`);
             const fictCheck = document.getElementById(`${id}-is-fictional`);
-            if (!jaInput || !enInput || !fictCheck) return;
+            if(!jaInput || !enInput || !fictCheck) return;
 
             // 安全装置: 名前入力時にUUIDの紐付けを解除する（誤上書き防止）
             const clearUUID = (e) => {
@@ -368,7 +368,7 @@ window.App.UI = {
                     if (window.App && window.App.Logger) {
                         window.App.Logger.add('UI', `UUID Kept (Rename Mode ON)`, { id });
                     }
-                    return;
+                    return; 
                 }
 
                 const group = document.querySelector(`.horse-input-group[data-horse-id="${id}"]`);
@@ -381,7 +381,7 @@ window.App.UI = {
                             if (window.App.Logger) {
                                 window.App.Logger.add('UI', `UUID Kept (Promoting Dummy)`, { id, uuid: currentUUID });
                             }
-                            return;
+                            return; 
                         }
                     }
 
@@ -407,7 +407,7 @@ window.App.UI = {
         });
     },
 
-    updatePlaceholder: function (checkbox, jaInput, enInput) {
+    updatePlaceholder: function(checkbox, jaInput, enInput) {
         if (checkbox.checked) {
             enInput.placeholder = "欧字馬名 (任意)"; jaInput.placeholder = "カナ馬名 (必須)";
         } else {
@@ -415,7 +415,7 @@ window.App.UI = {
         }
     },
 
-    validateInput: function (input, type) {
+    validateInput: function(input, type) {
         const val = input.value;
         if (!val) { input.classList.remove('input-error'); return; }
         let isValid = true;
@@ -429,7 +429,7 @@ window.App.UI = {
     // ==========================================
 
     // プレビューのセルクリック時
-    handleCellClick: function (horseId) {
+    handleCellClick: function(horseId) {
         // スマホ用タブ切り替え
         const formTabBtn = document.querySelector('.tab-button[data-tab="form"]');
         if (formTabBtn) {
@@ -441,22 +441,22 @@ window.App.UI = {
         // スクロール & ハイライト
         const targetInputId = (horseId === 'target') ? 'target-name-ja' : `${horseId}-name-ja`;
         const inputEl = document.getElementById(targetInputId);
-        if (inputEl) {
+        if(inputEl) {
             inputEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
             setTimeout(() => {
                 inputEl.focus();
                 inputEl.style.transition = 'background-color 0.3s';
-                inputEl.style.backgroundColor = '#fff3cd';
+                inputEl.style.backgroundColor = '#fff3cd'; 
                 setTimeout(() => { inputEl.style.backgroundColor = ''; }, 1000);
             }, 300);
         }
     },
 
     // DBデータの再帰的展開
-    populateFormRecursively: function (horseId, idPrefix) {
+    populateFormRecursively: function(horseId, idPrefix) {
         if (!App.State || !App.State.db) return;
         const horse = App.State.db.get(horseId);
-
+        
         // 幽霊データ（名前なし）対策
         const hasName = (horse && (horse.name_ja || horse.name_en));
         if (!horse || !hasName) {
@@ -466,44 +466,44 @@ window.App.UI = {
             this.clearFormRecursively(idPrefix);
             return;
         }
-
+        
         // --- 1. 現世代の入力 ---
         const ja = document.getElementById(`${idPrefix}-name-ja`);
         const en = document.getElementById(`${idPrefix}-name-en`);
         const yr = document.getElementById(`${idPrefix}-birth-year`);
         const fict = document.getElementById(`${idPrefix}-is-fictional`);
         const group = document.querySelector(`.horse-input-group[data-horse-id="${idPrefix}"]`);
-
+        
         if (group) group.dataset.uuid = horseId;
 
         // ダミー馬の場合は名前を表示せず空欄に見せる
         if (this.isDummyHorseName(horse.name_ja)) {
-            if (ja) ja.value = '';
+            if(ja) ja.value = '';
         } else {
-            if (ja) ja.value = horse.name_ja || '';
+            if(ja) ja.value = horse.name_ja || '';
         }
-
-        if (en) en.value = horse.name_en || '';
-        if (yr) yr.value = horse.birth_year || '';
-        if (fict) fict.checked = horse.is_fictional;
+        
+        if(en) en.value = horse.name_en || '';
+        if(yr) yr.value = horse.birth_year || '';
+        if(fict) fict.checked = horse.is_fictional;
 
         document.getElementById(`${idPrefix}-country`).value = horse.country || '';
         document.getElementById(`${idPrefix}-color`).value = horse.color || '';
         document.getElementById(`${idPrefix}-family-no`).value = horse.family_no || '';
         document.getElementById(`${idPrefix}-lineage`).value = horse.lineage || '';
-
+        
         // 修正モードをOFFにリセット
         const renameCheck = document.getElementById(`${idPrefix}-allow-rename`);
         if (renameCheck) renameCheck.checked = false;
-
+        
         // 入力イベント発火（プレビュー更新用）
-        if (ja) ja.dispatchEvent(new Event('input', { bubbles: true }));
+        if(ja) ja.dispatchEvent(new Event('input', { bubbles: true }));
 
         // --- 2. 親世代への再帰処理 ---
         let sirePrefix, damPrefix;
         if (idPrefix === 'target') { sirePrefix = 's'; damPrefix = 'd'; }
         else { sirePrefix = idPrefix + 's'; damPrefix = idPrefix + 'd'; }
-
+        
         if (sirePrefix.length > 5) return;
 
         // 父
@@ -511,11 +511,11 @@ window.App.UI = {
             this.populateFormRecursively(horse.sire_id, sirePrefix);
         } else if (horse.is_fictional && horse.sire_name) {
             // 架空馬で親名だけある場合（レガシー互換）
-            this.clearFormRecursively(sirePrefix);
+            this.clearFormRecursively(sirePrefix); 
             const sGroup = document.querySelector(`.horse-input-group[data-horse-id="${sirePrefix}"]`);
-            if (sGroup) delete sGroup.dataset.uuid;
+            if(sGroup) delete sGroup.dataset.uuid;
             const sJa = document.getElementById(`${sirePrefix}-name-ja`);
-            if (sJa) { sJa.value = horse.sire_name; sJa.dispatchEvent(new Event('input', { bubbles: true })); }
+            if(sJa) { sJa.value = horse.sire_name; sJa.dispatchEvent(new Event('input', { bubbles: true })); }
         } else {
             this.clearFormRecursively(sirePrefix);
         }
@@ -524,30 +524,30 @@ window.App.UI = {
         if (horse.dam_id) {
             this.populateFormRecursively(horse.dam_id, damPrefix);
         } else if (horse.is_fictional && horse.dam_name) {
-            this.clearFormRecursively(damPrefix);
+            this.clearFormRecursively(damPrefix); 
             const dGroup = document.querySelector(`.horse-input-group[data-horse-id="${damPrefix}"]`);
-            if (dGroup) delete dGroup.dataset.uuid;
+            if(dGroup) delete dGroup.dataset.uuid;
             const dJa = document.getElementById(`${damPrefix}-name-ja`);
-            if (dJa) { dJa.value = horse.dam_name; dJa.dispatchEvent(new Event('input', { bubbles: true })); }
+            if(dJa) { dJa.value = horse.dam_name; dJa.dispatchEvent(new Event('input', { bubbles: true })); }
         } else {
             this.clearFormRecursively(damPrefix);
         }
     },
 
     // 指定ID以下のフォームをクリア
-    clearFormRecursively: function (idPrefix) {
+    clearFormRecursively: function(idPrefix) {
         if (idPrefix.length > 5) return;
-
+        
         const inputs = [
             `${idPrefix}-name-ja`, `${idPrefix}-name-en`, `${idPrefix}-birth-year`,
             `${idPrefix}-country`, `${idPrefix}-color`, `${idPrefix}-family-no`, `${idPrefix}-lineage`
         ];
         inputs.forEach(id => {
             const el = document.getElementById(id);
-            if (el) el.value = '';
+            if(el) el.value = '';
         });
         const fict = document.getElementById(`${idPrefix}-is-fictional`);
-        if (fict) fict.checked = false;
+        if(fict) fict.checked = false;
 
         const group = document.querySelector(`.horse-input-group[data-horse-id="${idPrefix}"]`);
         if (group) delete group.dataset.uuid;
@@ -559,17 +559,17 @@ window.App.UI = {
     },
 
     // プレビュー表示の更新
-    updatePreview: function (id) {
+    updatePreview: function(id) {
         const ja = document.getElementById(`${id}-name-ja`)?.value.trim();
         const en = document.getElementById(`${id}-name-en`)?.value.trim();
         const year = document.getElementById(`${id}-birth-year`)?.value.trim();
         const isFict = document.getElementById(`${id}-is-fictional`)?.checked;
-
+        
         const country = document.getElementById(`${id}-country`)?.value.trim();
         const color = document.getElementById(`${id}-color`)?.value.trim();
         const lineage = document.getElementById(`${id}-lineage`)?.value.trim();
         const familyNo = document.getElementById(`${id}-family-no`)?.value.trim();
-
+        
         let dispName = ja || en || '&nbsp;';
         if (this.isDummyHorseName(ja)) {
             dispName = '&nbsp;';
@@ -584,11 +584,11 @@ window.App.UI = {
             title.textContent = text;
         } else {
             const pName = document.getElementById(`preview-${id}-name`);
-            if (!pName) return;
-
+            if(!pName) return;
+            
             const cellEl = pName.closest('.pedigree-cell');
             const col = parseInt(cellEl?.dataset.col);
-
+            
             if (col === 5) {
                 let text = dispName;
                 if ((ja || en) && year) text += `<span class="preview-year-5th"> (${year})</span>`;
@@ -610,26 +610,26 @@ window.App.UI = {
 
                 if (pLineage) pLineage.textContent = lineage || '';
                 if (pCountry) pCountry.textContent = country || '';
-
+                
                 if (pFamily) {
                     pFamily.textContent = familyNo || '';
                     pFamily.style.display = familyNo ? 'inline-block' : 'none';
                 }
             }
         }
-
+        
         this.updateCrossList();
     },
 
-    updateCrossList: function () {
+    updateCrossList: function() {
         const formData = this.getFormDataAsMap();
         const result = App.Pedigree.calculateCrosses(formData);
         this.renderCrossList(result.list);
     },
 
-    renderCrossList: function (crosses) {
+    renderCrossList: function(crosses) {
         const container = document.getElementById('cross-list-container');
-        if (!container) return;
+        if(!container) return; 
 
         document.querySelectorAll('.pedigree-cell .horse-name').forEach(el => {
             el.classList.remove('cross-highlight-text');
@@ -643,7 +643,7 @@ window.App.UI = {
             container.innerHTML = html;
             return;
         }
-
+        
         crosses.forEach(cross => {
             const pctStr = parseFloat(cross.pct.toFixed(2)) + '%';
             html += `<span class="cross-item"><span class="cross-item-name">${cross.name}</span> ${pctStr} (${cross.gens})</span> `;
@@ -661,15 +661,15 @@ window.App.UI = {
     // 5. データ収集・ユーティリティ (Utilities)
     // ==========================================
 
-    getFormDataAsMap: function () {
+    getFormDataAsMap: function() {
         const { ALL_IDS } = App.Consts;
         const formData = new Map();
         ALL_IDS.forEach(id => {
             const nameJa = document.getElementById(`${id}-name-ja`).value.trim();
             const nameEn = document.getElementById(`${id}-name-en`).value.trim();
             const year = document.getElementById(`${id}-birth-year`).value.trim();
-
-            if (id === 'target' || nameJa || nameEn || year) {
+            
+            if (id === 'target' || nameJa || nameEn || year) { 
                 const isFictional = document.getElementById(`${id}-is-fictional`).checked;
                 const group = document.querySelector(`.horse-input-group[data-horse-id="${id}"]`);
                 const uuid = group ? group.dataset.uuid : null;
@@ -699,7 +699,7 @@ window.App.UI = {
         return formData;
     },
 
-    getInputValue: function (id) {
+    getInputValue: function(id) {
         const ja = document.getElementById(`${id}-name-ja`);
         const en = document.getElementById(`${id}-name-en`);
         if (ja && ja.value) return ja.value.trim();
@@ -707,7 +707,7 @@ window.App.UI = {
         return '';
     },
 
-    checkRequiredFields: function () {
+    checkRequiredFields: function() {
         const { ALL_IDS } = App.Consts;
         let hasError = false; let firstErrorId = null;
         ALL_IDS.forEach(id => {
@@ -716,17 +716,17 @@ window.App.UI = {
             const yearInput = document.getElementById(`${id}-birth-year`);
             const fictCheck = document.getElementById(`${id}-is-fictional`);
             const hasInput = jaInput.value.trim() || enInput.value.trim();
-
+            
             if (id === 'target' || hasInput) {
                 const isFictional = fictCheck.checked;
                 if (!isFictional && !enInput.value.trim()) {
-                    enInput.classList.add('input-error'); hasError = true; if (!firstErrorId) firstErrorId = enInput;
+                    enInput.classList.add('input-error'); hasError = true; if(!firstErrorId) firstErrorId = enInput;
                 }
                 if (isFictional && !jaInput.value.trim()) {
-                    jaInput.classList.add('input-error'); hasError = true; if (!firstErrorId) firstErrorId = jaInput;
+                    jaInput.classList.add('input-error'); hasError = true; if(!firstErrorId) firstErrorId = jaInput;
                 }
                 if (!isFictional && !yearInput.value.trim()) {
-                    yearInput.classList.add('input-error'); hasError = true; if (!firstErrorId) firstErrorId = yearInput;
+                    yearInput.classList.add('input-error'); hasError = true; if(!firstErrorId) firstErrorId = yearInput;
                 }
             }
         });
@@ -739,7 +739,7 @@ window.App.UI = {
     },
 
     // フォームリセット
-    resetForm: function () {
+    resetForm: function() {
         if (!confirm("入力内容をすべて消去し、リセットしますか？\n（保存していない入力内容は失われます）")) return;
 
         // 全入力クリア
@@ -756,7 +756,7 @@ window.App.UI = {
             const en = document.getElementById(`${id}-name-en`);
             const check = document.getElementById(`${id}-is-fictional`);
             if (ja && en && check) this.updatePlaceholder(check, ja, en);
-
+            
             if (ja) ja.classList.remove('input-error');
             if (en) en.classList.remove('input-error');
             const year = document.getElementById(`${id}-birth-year`);
@@ -784,14 +784,14 @@ window.App.UI = {
     },
 
     // 系統クリア
-    handleClearAncestors: function (startId) {
+    handleClearAncestors: function(startId) {
         if (!confirm(`【${startId.toUpperCase()}】\nこの馬と、繋がっている先祖のデータをすべて消去しますか？`)) return;
         this.clearFormRecursively(startId);
         this.updateDummyIndicator();
     },
 
     // ダミー補完通知の更新
-    updateDummyIndicator: function () {
+    updateDummyIndicator: function() {
         const { ALL_IDS } = App.Consts;
         const formData = this.getFormDataAsMap();
 
@@ -828,17 +828,17 @@ window.App.UI = {
             if (this.hasAncestorData(id, formData)) {
                 let childId = (id.length === 1) ? 'target' : id.substring(0, id.length - 1);
                 const child = formData.get(childId);
-
+                
                 let childName = child ? (child.name_ja || child.name_en) : '';
                 if (!childName) childName = '未登録馬';
-
+                
                 if (this.isDummyHorseName(childName)) {
                     childName = this.formatDummyName(childName).replace(/[（）()]/g, '');
                 }
-
+                
                 const suffix = (id.endsWith('s')) ? 'の父' : 'の母';
                 const predictedName = `（${childName}${suffix}）`;
-
+                
                 notifArea.innerHTML = `⚠️ 未命名／名称不明の馬 <strong>${predictedName}</strong> として登録されます。`;
                 notifArea.classList.add('visible');
             }
@@ -846,7 +846,7 @@ window.App.UI = {
     },
 
     // 指定IDより先の系統にデータがあるかチェック
-    hasAncestorData: function (id, formData) {
+    hasAncestorData: function(id, formData) {
         if (id.length >= 5) return false;
         const sireId = id + 's'; const damId = id + 'd';
         const sire = formData.get(sireId); const dam = formData.get(damId);
@@ -855,12 +855,12 @@ window.App.UI = {
         if (hasSire || hasDam) return true;
         return this.hasAncestorData(sireId, formData) || this.hasAncestorData(damId, formData);
     },
-
-    isDummyHorseName: function (name) {
+    
+    isDummyHorseName: function(name) {
         return name && name.startsWith('(未登録:') && (name.endsWith(')') || name.endsWith('）'));
     },
 
-    formatDummyName: function (name) {
+    formatDummyName: function(name) {
         if (!this.isDummyHorseName(name)) return name;
         let current = name;
         const suffixes = [];
@@ -882,13 +882,13 @@ window.App.UI = {
 
     // --- その他UI制御・ヘルパー ---
 
-    handleSaveImage: async function () {
+    handleSaveImage: async function() {
         const { IMAGE_WIDTHS } = App.Consts;
         const { downloadFile } = App.Utils;
-
+        
         const titleEl = document.getElementById('preview-title');
-        const crossList = document.getElementById('cross-list-container');
-
+        const crossList = document.getElementById('cross-list-container'); 
+        
         const ja = document.getElementById('target-name-ja').value.trim();
         const en = document.getElementById('target-name-en').value.trim();
         const year = document.getElementById('target-birth-year').value.trim();
@@ -899,7 +899,7 @@ window.App.UI = {
 
         const cloneContainer = document.createElement('div');
         cloneContainer.className = 'clone-container-for-image';
-
+        
         const h2 = document.createElement('h2');
         const clonedSpan = titleEl.cloneNode(true);
         h2.style.fontSize = '24px';
@@ -908,34 +908,34 @@ window.App.UI = {
         h2.style.textAlign = 'left';
         h2.appendChild(clonedSpan);
         cloneContainer.appendChild(h2);
-
+        
         const table = document.querySelector('.pedigree-table');
         cloneContainer.appendChild(table.cloneNode(true));
 
         if (crossList && crossList.style.display !== 'none') {
             const clonedCross = crossList.cloneNode(true);
             clonedCross.style.marginTop = '10px';
-            clonedCross.style.borderTop = 'none';
+            clonedCross.style.borderTop = 'none'; 
             cloneContainer.appendChild(clonedCross);
         }
-
+        
         cloneContainer.style.width = `${IMAGE_WIDTHS[selectedGen]}px`;
         document.body.appendChild(cloneContainer);
-
+        
         await new Promise(resolve => requestAnimationFrame(resolve));
         try {
             const canvas = await html2canvas(cloneContainer, { scale: 1 });
             const dataUrl = canvas.toDataURL('image/png');
             downloadFile(dataUrl, fileName, 'image/png');
-        } catch (e) {
-            console.error(e);
-            alert('保存失敗');
-        } finally {
-            document.body.removeChild(cloneContainer);
+        } catch (e) { 
+            console.error(e); 
+            alert('保存失敗'); 
+        } finally { 
+            document.body.removeChild(cloneContainer); 
         }
     },
 
-    setGlobalLoading: function (isLoading, title = '処理中...', message = '') {
+    setGlobalLoading: function(isLoading, title = '処理中...', message = '') {
         const overlay = document.getElementById('global-loading-overlay');
         const titleEl = document.getElementById('loading-title');
         const msgEl = document.getElementById('loading-message');
@@ -951,7 +951,7 @@ window.App.UI = {
         }
     },
 
-    setSaveButtonLoading: function (isLoading, label) {
+    setSaveButtonLoading: function(isLoading, label) {
         const saveBtn = document.getElementById('save-db');
         if (saveBtn) {
             saveBtn.disabled = isLoading;
@@ -959,9 +959,9 @@ window.App.UI = {
         }
     },
 
-    showSaveConfirmModal: function (conflicts, pendingSaveData) {
+    showSaveConfirmModal: function(conflicts, pendingSaveData) {
         App.Logger.add('UI', 'Showing Conflict Modal', { conflictCount: conflicts.length });
-
+        
         const listContainer = document.getElementById('save-confirm-list');
         listContainer.innerHTML = '';
 
@@ -969,8 +969,8 @@ window.App.UI = {
             const card = document.createElement('div');
             card.className = 'confirm-card';
             let tableRows = '';
-            const fieldNames = {
-                name_ja: 'カナ馬名', name_en: '欧字馬名', birth_year: '生年',
+            const fieldNames = { 
+                name_ja: 'カナ馬名', name_en: '欧字馬名', birth_year: '生年', 
                 country: '生産国', color: '毛色', family_no: 'F-No.', lineage: '系統'
             };
             conflict.diffs.forEach(d => {
@@ -994,145 +994,7 @@ window.App.UI = {
         document.getElementById('save-confirm-modal-overlay').classList.remove('hidden');
     },
 
-    showInputConflictModal: function (conflicts, onResolve) {
-        App.Logger.add('UI', 'Showing Input Conflict Modal', { conflictCount: conflicts.length });
-
-        const modal = document.getElementById('input-conflict-modal-overlay');
-        const listFn = document.getElementById('input-conflict-list');
-        const resolveBtn = document.getElementById('resolve-conflict-btn');
-
-        if (!modal || !listFn || !resolveBtn) return;
-
-        listFn.innerHTML = '';
-
-        conflicts.forEach((item, idx) => {
-            // item: { key, name, variants: [{formIds:[], horse:{...}}] }
-            const card = document.createElement('div');
-            card.className = 'input-conflict-card';
-
-            let html = `<h4>${item.name} <small>の入力不一致</small></h4>`;
-            html += `<p style="font-size:0.9em; margin-bottom:8px; color:var(--sub-text-color);">同一馬と思われるデータ間で、詳細情報が異なります。</p>`;
-
-            item.variants.forEach((v, vIdx) => {
-                const isChecked = vIdx === 0 ? 'checked' : '';
-
-                // 差異のあるフィールドを抽出してサマリー表示
-                const fields = [];
-                const h = v.horse;
-                if (h.country) fields.push(`生産国:${h.country}`);
-                if (h.color) fields.push(`毛色:${h.color}`);
-                if (h.family_no) fields.push(`FNo:${h.family_no}`);
-                if (h.lineage) fields.push(`系統:${h.lineage}`);
-                if (h.is_fictional) fields.push(`(架空馬)`);
-
-                let summary = fields.map(f => `<span class="conflict-val-highlight">${f}</span>`).join(' ');
-                if (!summary) summary = '(追加情報なし)';
-
-                // ソース（入力箇所）の表示名を分かりやすく
-                const labels = v.formIds.map(fid => {
-                    const labelInfo = App.Consts.GENERATION_LABELS[fid];
-                    return labelInfo ? labelInfo.label : fid;
-                }).join(', ');
-
-                html += `
-                <label class="conflict-choice-label">
-                    <input type="radio" name="conflict_${idx}" value="${vIdx}" ${isChecked}>
-                    <span>
-                       <strong>候補 ${vIdx + 1}</strong>: ${summary}<br>
-                       <small style="color:var(--sub-text-color);">入力箇所: ${labels}</small>
-                    </span>
-                </label>`;
-            });
-            card.innerHTML = html;
-            listFn.appendChild(card);
-        });
-
-        modal.classList.remove('hidden');
-        resolveBtn.disabled = false;
-
-        // ボタンイベントの定義
-        resolveBtn.onclick = () => {
-            const resolvedMap = new Map();
-            conflicts.forEach((item, idx) => {
-                const radio = document.querySelector(`input[name="conflict_${idx}"]:checked`);
-                if (radio) {
-                    const selectedVIdx = parseInt(radio.value);
-                    const selectedHorse = item.variants[selectedVIdx].horse;
-                    resolvedMap.set(item.key, selectedHorse);
-                }
-            });
-
-            modal.classList.add('hidden');
-            if (onResolve) onResolve(resolvedMap);
-        };
-    },
-
-    reflectResolvedDataToDom: function (resolvedMap) {
-        const { ALL_IDS } = App.Consts;
-        let updateCount = 0;
-
-        ALL_IDS.forEach(id => {
-            const nameJa = document.getElementById(`${id}-name-ja`);
-            const nameEn = document.getElementById(`${id}-name-en`);
-            const year = document.getElementById(`${id}-birth-year`);
-
-            const valJa = nameJa ? nameJa.value.trim() : '';
-            const valEn = nameEn ? nameEn.value.trim() : '';
-            const valYear = year ? year.value.trim() : '';
-
-            if (!valJa && !valEn) return;
-
-            // 名寄せキーの生成（ここでも正規化ロジックと同様のキー生成が必要）
-            // ※実在馬は欧字名優先、架空馬はカナ名優先だが、ここでは簡易的に両方考慮
-            // 実際のキーは呼び出し元(main.js)と一致させる必要がある
-            const key = `${valJa || valEn}_${valYear}`;
-
-            // 日本語名と英語名の両方のキーで探す（安全策）
-            let correct = resolvedMap.get(key);
-            if (!correct && valJa) correct = resolvedMap.get(`${valJa}_${valYear}`);
-            if (!correct && valEn) correct = resolvedMap.get(`${valEn}_${valYear}`);
-
-            if (correct) {
-                // 値の更新ヘルパー
-                const updateIfDiff = (elId, newVal) => {
-                    const el = document.getElementById(elId);
-                    if (el && el.value !== (newVal || '')) {
-                        el.value = newVal || '';
-                        // 視覚的フィードバック（背景を一瞬変える等）があると良いが、今回は省略
-                        updateCount++;
-                    }
-                };
-
-                updateIfDiff(`${id}-country`, correct.country);
-                updateIfDiff(`${id}-color`, correct.color);
-                updateIfDiff(`${id}-family-no`, correct.family_no);
-                updateIfDiff(`${id}-lineage`, correct.lineage);
-
-                // コア情報の統一（表記ゆれ修正）
-                if (correct.name_ja) updateIfDiff(`${id}-name-ja`, correct.name_ja);
-                if (correct.name_en) updateIfDiff(`${id}-name-en`, correct.name_en);
-                if (correct.birth_year) updateIfDiff(`${id}-birth-year`, correct.birth_year);
-
-                // 架空馬フラグの統一
-                const fictCheck = document.getElementById(`${id}-is-fictional`);
-                if (fictCheck && fictCheck.checked !== !!correct.is_fictional) {
-                    fictCheck.checked = !!correct.is_fictional;
-                    updateCount++;
-                }
-
-                // UUIDの最新化
-                if (correct.id) {
-                    const group = document.querySelector(`.horse-input-group[data-horse-id="${id}"]`);
-                    if (group && group.dataset.uuid !== correct.id) {
-                        group.dataset.uuid = correct.id;
-                    }
-                }
-            }
-        });
-        App.Logger.add('UI', 'Reflected Resolved Data', { updateCount });
-    },
-
-    showToast: function (message, duration = 3000) {
+    showToast: function(message, duration = 3000) {
         const container = document.getElementById('toast-container');
         if (!container) return;
 
@@ -1141,7 +1003,7 @@ window.App.UI = {
         toast.textContent = message;
 
         container.appendChild(toast);
-
+        
         requestAnimationFrame(() => {
             toast.classList.add('show');
         });
@@ -1149,7 +1011,7 @@ window.App.UI = {
         setTimeout(() => {
             toast.classList.remove('show');
             setTimeout(() => {
-                if (container.contains(toast)) container.removeChild(toast);
+                if(container.contains(toast)) container.removeChild(toast);
             }, 300);
         }, duration);
     }
